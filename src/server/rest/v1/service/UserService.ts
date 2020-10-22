@@ -9,6 +9,7 @@ import AppAuthError from '../../../../exception/AppAuthError';
 import AppError from '../../../../exception/AppError';
 import Authorizations from '../../../../authorization/Authorizations';
 import BillingFactory from '../../../../integration/billing/BillingFactory';
+import CarStorage from '../../../../storage/mongodb/CarStorage';
 import ConnectionStorage from '../../../../storage/mongodb/ConnectionStorage';
 import Constants from '../../../../utils/Constants';
 import Cypher from '../../../../utils/Cypher';
@@ -1013,8 +1014,9 @@ export default class UserService {
   }
 
   public static async handleGetTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
+    const tagID = UserSecurity.filterTagRequestByID(req.query);
     // Check auth
-    if (!Authorizations.canReadTag(req.user)) {
+    if (!Authorizations.canReadTag(req.user, tagID)) {
       throw new AppAuthError({
         errorCode: HTTPAuthError.ERROR,
         user: req.user,
@@ -1022,7 +1024,6 @@ export default class UserService {
         module: MODULE_NAME, method: 'handleGetTag'
       });
     }
-    const tagID = UserSecurity.filterTagRequestByID(req.query);
     UtilsService.assertIdIsProvided(action, tagID, MODULE_NAME, 'handleGetTag', req.user);
     // Get the tag
     const tag = await UserStorage.getTag(req.user.tenantID, tagID, { withUser: true });
@@ -1030,6 +1031,52 @@ export default class UserService {
       MODULE_NAME, 'handleGetTag', req.user);
     // Return
     res.json(UserSecurity.filterTagResponse(tag, req.user));
+    next();
+  }
+
+  public static async handleGetUserDefaultTagCar(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
+    const userID = UserSecurity.filterDefaultTagCarRequestByUserID(req.query);
+    // Check auth
+    if (!Authorizations.canReadTag(req.user, userID)) {
+      throw new AppAuthError({
+        errorCode: HTTPAuthError.ERROR,
+        user: req.user,
+        action: Action.READ, entity: Entity.TAG,
+        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
+      });
+    }
+    // Check auth
+    if (!Authorizations.canReadCar(req.user)) {
+      throw new AppAuthError({
+        errorCode: HTTPAuthError.ERROR,
+        user: req.user,
+        action: Action.READ, entity: Entity.CAR,
+        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
+      });
+    }
+    UtilsService.assertIdIsProvided(action, userID, MODULE_NAME, 'handleGetUserDefaultTagCar', req.user);
+    // Get the tag
+    let tagsMDB = await UserStorage.getTags(req.user.tenantID, {
+      userIDs: [userID],
+      defaultTag: true,
+      active: true
+    }, Constants.DB_PARAMS_SINGLE_RECORD);
+    if (tagsMDB.count < 1) {
+      tagsMDB = await UserStorage.getTags(req.user.tenantID, {
+        userIDs: [userID],
+        active: true
+      }, Constants.DB_PARAMS_SINGLE_RECORD);
+    }
+    const tag = tagsMDB.count > 0 ? tagsMDB.result[0] : null;
+    let carsMDB = await CarStorage.getCars(req.user.tenantID,
+      { userIDs: [userID], defaultCar: true },
+      Constants.DB_PARAMS_SINGLE_RECORD);
+    carsMDB = carsMDB.count > 0 ? carsMDB : await CarStorage.getCars(req.user.tenantID,
+      { userIDs: [userID] },
+      Constants.DB_PARAMS_SINGLE_RECORD);
+    const car = carsMDB.count > 0 ? carsMDB.result[0] : null;
+    // Return
+    res.json(UserSecurity.filterUserDefaultTagResponse(tag, car, req.user));
     next();
   }
 
@@ -1051,6 +1098,7 @@ export default class UserService {
         search: filteredRequest.Search,
         userIDs: filteredRequest.UserID ? filteredRequest.UserID.split('|') : null,
         issuer: filteredRequest.Issuer,
+        active: filteredRequest.Active,
         withUser: true,
       },
       { limit: filteredRequest.Limit, skip: filteredRequest.Skip, sort: filteredRequest.Sort, onlyRecordCount: filteredRequest.OnlyRecordCount },
@@ -1079,7 +1127,7 @@ export default class UserService {
       });
     }
     // Get Tag
-    const tag = await UserStorage.getTag(req.user.tenantID, tagId, { withNbrTransactions: true });
+    let tag = await UserStorage.getTag(req.user.tenantID, tagId, { withNbrTransactions: true });
     UtilsService.assertObjectExists(action, tag, `Tag ID '${tagId}' does not exist`,
       MODULE_NAME, 'handleDeleteTag', req.user);
     // Only current organizations tags can be deleted
@@ -1106,6 +1154,16 @@ export default class UserService {
     }
     // Delete the Tag
     await UserStorage.deleteTag(req.user.tenantID, tag.userID, tag);
+    const tagsMDB = await UserStorage.getTags(req.user.tenantID, {
+      userIDs: [tag.userID]
+    }, Constants.DB_PARAMS_SINGLE_RECORD);
+    if (tagsMDB.count === 1) {
+      if (!tagsMDB.result[0].default) {
+        tag = tagsMDB.result[0];
+        tag.default = true;
+        await UserStorage.saveTag(req.user.tenantID, tag);
+      }
+    }
     // OCPI
     if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI)) {
       try {
@@ -1126,7 +1184,7 @@ export default class UserService {
       } catch (error) {
         Logging.logError({
           tenantID: req.user.tenantID,
-          module: MODULE_NAME, method: 'handleUpdateTag',
+          module: MODULE_NAME, method: 'handleDeleteTag',
           action: action,
           message: `Unable to synchronize tokens of user ${tag.userID} with IOP`,
           detailedMessages: { error: error.message, stack: error.stack }
@@ -1188,7 +1246,7 @@ export default class UserService {
     }
     // Clear default tag
     if (filteredRequest.default) {
-      await UserStorage.clearTagUserDefault(req.user.tenantID,filteredRequest.userID);
+      await UserStorage.clearTagUserDefault(req.user.tenantID, filteredRequest.userID);
     }
     // Create
     const newTag: Tag = {
@@ -1199,7 +1257,9 @@ export default class UserService {
       createdBy: { id: req.user.id },
       createdOn: new Date(),
       userID: filteredRequest.userID,
-      default: filteredRequest.default
+      default: filteredRequest.default ? filteredRequest.default : (await UserStorage.getTags(req.user.tenantID, {
+        userIDs: [filteredRequest.userID]
+      }, Constants.DB_PARAMS_SINGLE_RECORD)).count === 0
     } as Tag;
     // Save
     await UserStorage.saveTag(req.user.tenantID, newTag);
@@ -1257,7 +1317,7 @@ export default class UserService {
     // Check
     await Utils.checkIfUserTagIsValid(filteredRequest, req);
     // Get Tag
-    const tag = await UserStorage.getTag(req.user.tenantID, filteredRequest.id, { withNbrTransactions: true });
+    let tag = await UserStorage.getTag(req.user.tenantID, filteredRequest.id, { withNbrTransactions: true });
     UtilsService.assertObjectExists(action, tag, `Tag ID '${filteredRequest.id}' does not exist`,
       MODULE_NAME, 'handleUpdateTag', req.user);
     // Only current organization Tag can be updated
@@ -1298,19 +1358,39 @@ export default class UserService {
           action: action
         });
       }
+      formerTagOwnerID = tag.userID;
+      if (filteredRequest.default) {
+        await UserStorage.clearTagUserDefault(req.user.tenantID, filteredRequest.userID);
+      }
     }
-    if (filteredRequest.default && (tag.default !== filteredRequest.default)) {
-      await UserStorage.clearTagUserDefault(req.user.tenantID,filteredRequest.userID);
+    if (filteredRequest.default && !formerTagOwnerID && (tag.default !== filteredRequest.default)) {
+      await UserStorage.clearTagUserDefault(req.user.tenantID, filteredRequest.userID);
     }
     // Update
     tag.description = filteredRequest.description;
     tag.active = filteredRequest.active;
     tag.userID = filteredRequest.userID;
-    tag.default = filteredRequest.default;
+    tag.default = filteredRequest.default ? filteredRequest.default : (await UserStorage.getTags(req.user.tenantID, {
+      userIDs: [filteredRequest.userID]
+    }, Constants.DB_PARAMS_SINGLE_RECORD)).count === 0;
     tag.lastChangedBy = { id: req.user.id };
     tag.lastChangedOn = new Date();
     // Save
     await UserStorage.saveTag(req.user.tenantID, tag);
+    if (formerTagOwnerID) {
+      const tagsMDB = await UserStorage.getTags(req.user.tenantID, {
+        userIDs: [formerTagOwnerID]
+      }, Constants.DB_PARAMS_SINGLE_RECORD);
+      if (tagsMDB.count === 1) {
+        if (!tagsMDB.result[0].default) {
+          tag = tagsMDB.result[0];
+          tag.default = true;
+          await UserStorage.saveTag(req.user.tenantID, tag);
+        }
+      }
+      // Recompute the former User's Hash (trigger unlog)
+      await SessionHashService.rebuildUserHashID(req.user.tenantID, formerTagOwnerID);
+    }
     // Synchronize badges with IOP
     if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI) && (filteredRequest.userID !== tag.userID)) {
       try {

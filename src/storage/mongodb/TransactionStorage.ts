@@ -57,6 +57,7 @@ export default class TransactionStorage {
       siteAreaID: Utils.convertToObjectID(transactionToSave.siteAreaID),
       connectorId: Utils.convertToInt(transactionToSave.connectorId),
       tagID: transactionToSave.tagID,
+      carID: transactionToSave.carID ? Utils.convertToObjectID(transactionToSave.carID) : null,
       userID: Utils.convertToObjectID(transactionToSave.userID),
       chargeBoxID: transactionToSave.chargeBoxID,
       meterStart: Utils.convertToInt(transactionToSave.meterStart),
@@ -419,7 +420,7 @@ export default class TransactionStorage {
     if (ownerMatch.$or && ownerMatch.$or.length > 0) {
       aggregation.push({
         $match: {
-          $and: [ ownerMatch, filters ]
+          $and: [ownerMatch, filters]
         }
       });
     } else {
@@ -561,6 +562,16 @@ export default class TransactionStorage {
       tenantID, aggregation: aggregation, asField: 'user', localField: 'userID',
       foreignField: '_id', oneToOneCardinality: true, oneToOneCardinalityNotNull: false
     });
+    // Car
+    DatabaseUtils.pushCarLookupInAggregation({
+      tenantID, aggregation: aggregation, asField: 'car', localField: 'carID',
+      foreignField: '_id', oneToOneCardinality: true, oneToOneCardinalityNotNull: false
+    });
+    // Car Catalog
+    DatabaseUtils.pushCarCatalogLookupInAggregation({
+      tenantID: Constants.DEFAULT_TENANT, aggregation: aggregation, asField: 'car.carCatalog', localField: 'car.carCatalogID',
+      foreignField: '_id', oneToOneCardinality: true
+    });
     DatabaseUtils.pushUserLookupInAggregation({
       tenantID, aggregation: aggregation, asField: 'stop.user', localField: 'stop.userID',
       foreignField: '_id', oneToOneCardinality: true, oneToOneCardinalityNotNull: false
@@ -596,7 +607,7 @@ export default class TransactionStorage {
 
   public static async getRefundReports(tenantID: string,
     params: { ownerID?: string; siteAdminIDs?: string[] },
-    dbParams: DbParams, projectFields?: string[]): Promise<{ count: number; result: RefundReport[]}> {
+    dbParams: DbParams, projectFields?: string[]): Promise<{ count: number; result: RefundReport[] }> {
     // Debug
     const uniqueTimerID = Logging.traceStart(MODULE_NAME, 'getTransactions');
     // Check
@@ -800,7 +811,7 @@ export default class TransactionStorage {
     });
     // Charging Station?
     if (params.withChargeBoxes ||
-       (params.errorType && params.errorType.includes(TransactionInErrorType.OVER_CONSUMPTION))) {
+      (params.errorType && params.errorType.includes(TransactionInErrorType.OVER_CONSUMPTION))) {
       // Add Charge Box
       DatabaseUtils.pushChargingStationLookupInAggregation({
         tenantID, aggregation: aggregation, localField: 'chargeBoxID', foreignField: '_id', asField: 'chargeBox',
@@ -1224,11 +1235,15 @@ export default class TransactionStorage {
         ];
       case TransactionInErrorType.NO_BILLING_DATA:
         return [
-          { $match: { $or: [
-            { 'billingData': { $exists: false } },
-            { 'billingData.invoiceID': { $exists: false } },
-            { 'billingData.invoiceID': { $eq: null } }
-          ] } },
+          {
+            $match: {
+              $or: [
+                { 'billingData': { $exists: false } },
+                { 'billingData.invoiceID': { $exists: false } },
+                { 'billingData.invoiceID': { $eq: null } }
+              ]
+            }
+          },
           { $addFields: { 'errorCode': TransactionInErrorType.NO_BILLING_DATA } }
         ];
         break;
