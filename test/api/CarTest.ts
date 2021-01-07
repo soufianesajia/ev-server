@@ -53,27 +53,27 @@ describe('Car Tests', function() {
         });
         it('Should not be able to get car catalogs', async () => {
           const response = await testData.centralService.carApi.readCarCatalogs({});
-          expect(response.status).to.equal(560);
+          expect(response.status).to.equal(401);
         });
 
         it('Should not be able to get car catalog by ID', async () => {
           const response = await testData.centralService.carApi.readCarCatalog(null);
-          expect(response.status).to.equal(560);
+          expect(response.status).to.equal(401);
         });
 
         it('Should not be able to get image of a car', async () => {
           const response = await testData.centralService.carApi.readCarImages(null);
-          expect(response.status).to.equal(560);
+          expect(response.status).to.equal(401);
         });
 
         it('Should not be able to get car makers', async () => {
           const response = await testData.centralService.carApi.readCarMakers({});
-          expect(response.status).to.equal(560);
+          expect(response.status).to.equal(401);
         });
 
         it('Should not be able to get a detailed car catalog', async () => {
           const response = await testData.centralService.carApi.readCarCatalog(null);
-          expect(response.status).to.equal(560);
+          expect(response.status).to.equal(401);
         });
       });
     });
@@ -114,12 +114,6 @@ describe('Car Tests', function() {
           expect(response.status).to.equal(500);
         });
 
-        it('Should not be able to get car catalog debug object', async () => {
-          const response = await testData.centralService.carApi.readCarCatalog(carID);
-          expect(response.status).to.equal(200);
-          expect(response.data).to.not.have.property('hash');
-        });
-
         it('Should be able to create a new car', async () => {
           // Create
           const newCar = Factory.car.build();
@@ -144,7 +138,7 @@ describe('Car Tests', function() {
             }), false
           );
           expect(response.status).to.equal(500);
-          expect(response.data.message).to.equal('Car Vin is mandatory');
+          expect(response.data.message).to.equal('Vin Car is mandatory');
         });
 
         it('Should not be able to create a new car without a license plate', async () => {
@@ -377,12 +371,12 @@ describe('Car Tests', function() {
 
       it('Should not be able to get cars from super tenant', async () => {
         const response = await testData.centralService.carApiSuperTenant.readCars({});
-        expect(response.status).to.equal(560);
+        expect(response.status).to.equal(401);
       });
 
       it('Should not be able to get car from super tenant', async () => {
         const response = await testData.centralService.carApiSuperTenant.readCar({});
-        expect(response.status).to.equal(560);
+        expect(response.status).to.equal(401);
       });
 
       it('Should not be able to create a car from super tenant', async () => {
@@ -392,7 +386,7 @@ describe('Car Tests', function() {
           Factory.car.build(),
           false
         );
-        expect(response.status).to.equal(560);
+        expect(response.status).to.equal(401);
       });
     });
   });

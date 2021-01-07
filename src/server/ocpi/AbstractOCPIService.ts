@@ -27,7 +27,7 @@ export interface TenantIdHoldingRequest extends Request {
 export default abstract class AbstractOCPIService {
   public static readonly VERSIONS_PATH = '/versions';
 
-  private endpoints: Map<string, AbstractEndpoint> = new Map();
+  private endpoints: Map<string, AbstractEndpoint> = new Map<string, AbstractEndpoint>();
 
   // Create OCPI Service
   protected constructor(
@@ -103,6 +103,7 @@ export default abstract class AbstractOCPIService {
         await this.processEndpointAction(action, req, res, next);
         break;
     }
+    next();
   }
 
   /**

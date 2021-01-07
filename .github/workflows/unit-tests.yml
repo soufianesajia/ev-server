@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [12.x]
+        node-version: [12.x, 14.x]
         mongodb-version: [4.2]
     steps:
     - uses: actions/checkout@v2
@@ -37,7 +37,7 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
     - name: npm install
-      run: npm install --package-lock-only && npm ci
+      run: npm ci
     - name: npm run build:dev
       run: |
         cp src/assets/configs-ci/config.json src/assets
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [12.x]
+        node-version: [12.x, 14.x]
         mongodb-version: [4.2]
     steps:
     - uses: actions/checkout@v2
@@ -79,7 +79,7 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
     - name: npm install
-      run: npm install --package-lock-only && npm ci
+      run: npm ci
     - name: npm run build:dev
       run: |
         cp src/assets/configs-ci/config.json src/assets

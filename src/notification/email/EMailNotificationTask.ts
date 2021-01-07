@@ -1,4 +1,4 @@
-import { BillingInvoiceSynchronizationFailedNotification, BillingUserSynchronizationFailedNotification, CarCatalogSynchronizationFailedNotification, ChargingStationRegisteredNotification, ChargingStationStatusErrorNotification, EndOfChargeNotification, EndOfSessionNotification, EndOfSignedSessionNotification, EndUserErrorNotification, NewRegisteredUserNotification, NotificationSeverity, OCPIPatchChargingStationsStatusesErrorNotification, OfflineChargingStationNotification, OptimalChargeReachedNotification, PreparingSessionNotStartedNotification, RequestPasswordNotification, SessionNotStartedNotification, SmtpAuthErrorNotification, TransactionStartedNotification, UnknownUserBadgedNotification, UserAccountInactivityNotification, UserAccountStatusChangedNotification, VerificationEmailNotification } from '../../types/UserNotifications';
+import { BillingInvoiceSynchronizationFailedNotification, BillingNewInvoiceNotification, BillingUserSynchronizationFailedNotification, CarCatalogSynchronizationFailedNotification, ChargingStationRegisteredNotification, ChargingStationStatusErrorNotification, ComputeAndApplyChargingProfilesFailedNotification, EndOfChargeNotification, EndOfSessionNotification, EndOfSignedSessionNotification, EndUserErrorNotification, NewRegisteredUserNotification, NotificationSeverity, OCPIPatchChargingStationsStatusesErrorNotification, OfflineChargingStationNotification, OptimalChargeReachedNotification, PreparingSessionNotStartedNotification, RequestPasswordNotification, SessionNotStartedNotification, SmtpAuthErrorNotification, TransactionStartedNotification, UnknownUserBadgedNotification, UserAccountInactivityNotification, UserAccountStatusChangedNotification, VerificationEmailNotification } from '../../types/UserNotifications';
 
 import BackendError from '../../exception/BackendError';
 import Configuration from '../../utils/Configuration';
@@ -125,8 +125,16 @@ export default class EMailNotificationTask implements NotificationTask {
     return this.prepareAndSendEmail('billing-invoice-synchronization-failed', data, user, tenant, severity);
   }
 
+  public async sendBillingNewInvoice(data: BillingNewInvoiceNotification, user: User, tenant: Tenant, severity: NotificationSeverity): Promise<void> {
+    return this.prepareAndSendEmail('billing-new-invoice', data, user, tenant, severity);
+  }
+
   public async sendCarCatalogSynchronizationFailed(data: CarCatalogSynchronizationFailedNotification, user: User, tenant: Tenant, severity: NotificationSeverity): Promise<void> {
     return this.prepareAndSendEmail('car-synchronization-failed', data, user, tenant, severity);
+  }
+
+  public async sendComputeAndApplyChargingProfilesFailed(data: ComputeAndApplyChargingProfilesFailedNotification, user: User, tenant: Tenant, severity: NotificationSeverity): Promise<void> {
+    return this.prepareAndSendEmail('compute-and-apply-charging-profiles-failed', data, user, tenant, severity);
   }
 
   public async sendEndUserErrorNotification(data: EndUserErrorNotification, user: User, tenant: Tenant, severity: NotificationSeverity): Promise<void> {
@@ -151,6 +159,7 @@ export default class EMailNotificationTask implements NotificationTask {
       if (err) {
         // If authentication error in the primary email server then notify admins using the backup server
         if (!retry && this.serverBackup) {
+          // TODO: Circular deps: src/notification/NotificationHandler.ts -> src/notification/email/EMailNotificationTask.ts -> src/notification/NotificationHandler.ts
           NotificationHandler.sendSmtpAuthError(
             tenant.id,
             {
@@ -287,11 +296,11 @@ export default class EMailNotificationTask implements NotificationTask {
           });
       }
       // Render Action
-      if (emailTemplate.body.action) {
-        emailTemplate.body.action.title =
-          ejs.render(emailTemplate.body.action.title, data);
-        emailTemplate.body.action.url =
-          ejs.render(emailTemplate.body.action.url, data);
+      if (emailTemplate.body.actions) {
+        for (const action of emailTemplate.body.actions) {
+          action.title = ejs.render(action.title, data);
+          action.url = ejs.render(action.url, data);
+        }
       }
       if (emailTemplate.body.afterActionLines) {
         // Render Lines After Action

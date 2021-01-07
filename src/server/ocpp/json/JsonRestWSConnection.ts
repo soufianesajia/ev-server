@@ -1,11 +1,13 @@
+import WebSocket, { CloseEvent, ErrorEvent } from 'ws';
+
 import BackendError from '../../../exception/BackendError';
+import ChargingStationClient from '../../../client/ocpp/ChargingStationClient';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import JsonCentralSystemServer from './JsonCentralSystemServer';
 import Logging from '../../../utils/Logging';
 import { MessageType } from '../../../types/WebSocket';
 import { ServerAction } from '../../../types/Server';
 import WSConnection from './WSConnection';
-import WebSocket from 'ws';
 import global from '../../../types/GlobalType';
 import http from 'http';
 
@@ -35,13 +37,15 @@ export default class JsonRestWSConnection extends WSConnection {
     }
   }
 
-  public onError(event: Event): void {
+  public onError(errorEvent: ErrorEvent): void {
     // Log
     Logging.logError({
       tenantID: this.getTenantID(),
+      source: (this.getChargingStationID() ? this.getChargingStationID() : ''),
       module: MODULE_NAME, method: 'onError',
       action: ServerAction.WS_REST_CONNECTION_ERROR,
-      message: event
+      message: `Error ${errorEvent?.error} ${errorEvent?.message}`,
+      detailedMessages: { errorEvent: errorEvent }
     });
   }
 
@@ -52,7 +56,8 @@ export default class JsonRestWSConnection extends WSConnection {
       source: (this.getChargingStationID() ? this.getChargingStationID() : ''),
       module: MODULE_NAME, method: 'onClose',
       action: ServerAction.WS_REST_CONNECTION_CLOSED,
-      message: `Connection has been closed, Reason '${closeEvent.reason ? closeEvent.reason : 'No reason given'}', Code '${closeEvent.code}'`
+      message: `Connection has been closed, Reason '${closeEvent.reason ? closeEvent.reason : 'No reason given'}', Code '${closeEvent}'`,
+      detailedMessages: { closeEvent: closeEvent }
     });
     // Remove the connection
     this.wsServer.removeRestConnection(this);
@@ -61,9 +66,7 @@ export default class JsonRestWSConnection extends WSConnection {
   public async handleRequest(messageId: string, commandName: ServerAction, commandPayload: any): Promise<void> {
     // Get the Charging Station
     const chargingStation = await ChargingStationStorage.getChargingStation(this.getTenantID(), this.getChargingStationID());
-    // Found?
     if (!chargingStation) {
-      // Error
       throw new BackendError({
         source: this.getChargingStationID(),
         module: MODULE_NAME,
@@ -73,7 +76,7 @@ export default class JsonRestWSConnection extends WSConnection {
       });
     }
     // Get the client from JSON Server
-    const chargingStationClient = global.centralSystemJsonServer.getChargingStationClient(this.getTenantID(), chargingStation.id);
+    const chargingStationClient: ChargingStationClient = global.centralSystemJsonServer.getChargingStationClient(this.getTenantID(), this.getChargingStationID());
     if (!chargingStationClient) {
       throw new BackendError({
         source: this.getChargingStationID(),
@@ -84,15 +87,13 @@ export default class JsonRestWSConnection extends WSConnection {
       });
     }
     // Call the client
-    let result;
-    // Build the method
     const actionMethod = commandName[0].toLowerCase() + commandName.substring(1);
     // Call
     if (typeof chargingStationClient[actionMethod] === 'function') {
       // Call the method
-      result = await chargingStationClient[actionMethod](commandPayload);
+      const result = await chargingStationClient[actionMethod](commandPayload);
       // Send Response
-      await this.sendMessage(messageId, result, MessageType.RESULT_MESSAGE);
+      await this.sendMessage(messageId, result, MessageType.CALL_RESULT_MESSAGE, commandName);
     } else {
       // Error
       throw new BackendError({

@@ -1,4 +1,6 @@
 import { Action, Entity } from '../../types/Authorization';
+import { Adapter, Room, SocketId } from 'socket.io-adapter';
+import { Server, Socket } from 'socket.io';
 import SingleChangeNotification, { NotificationData } from '../../types/SingleChangeNotification';
 import express, { NextFunction, Request, Response } from 'express';
 
@@ -14,25 +16,19 @@ import ExpressTools from '../ExpressTools';
 import GlobalRouter from './v1/router/GlobalRouter';
 import Logging from '../../utils/Logging';
 import { ServerAction } from '../../types/Server';
-import SessionHashService from './v1/service/SessionHashService';
 import UserToken from '../../types/UserToken';
 import Utils from '../../utils/Utils';
 import cluster from 'cluster';
 import http from 'http';
+import jwtAuth from 'socketio-jwt-auth';
 import sanitize from 'express-sanitizer';
-import socketio from 'socket.io';
-import socketioJwt from 'socketio-jwt';
 
 const MODULE_NAME = 'CentralRestServer';
-
-interface SocketIOJwt extends socketio.Socket {
-  decoded_token: UserToken;
-}
 
 export default class CentralRestServer {
   private static centralSystemRestConfig: CentralSystemRestServiceConfiguration;
   private static restHttpServer: http.Server;
-  private static socketIOServer: socketio.Server;
+  private static socketIOServer: Server;
   private static changeNotifications: ChangeNotification[] = [];
   private static singleChangeNotifications: SingleChangeNotification[] = [];
   private chargingStationConfig: ChargingStationConfiguration;
@@ -44,7 +40,7 @@ export default class CentralRestServer {
     CentralRestServer.centralSystemRestConfig = centralSystemRestConfig;
     this.chargingStationConfig = chargingStationConfig;
     // Initialize express app
-    this.expressApplication = ExpressTools.initApplication('2mb');
+    this.expressApplication = ExpressTools.initApplication('2mb', centralSystemRestConfig.debug);
     // Mount express-sanitizer middleware
     this.expressApplication.use(sanitize());
     // Authentication
@@ -72,76 +68,80 @@ export default class CentralRestServer {
 
   startSocketIO(): void {
     // Log
-    const logMsg = 'Starting REST SocketIO Server';
+    const logMsg = `Starting REST SocketIO Server ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master'}...`;
     Logging.logInfo({
       tenantID: Constants.DEFAULT_TENANT,
       module: MODULE_NAME, method: 'startSocketIO',
       action: ServerAction.STARTUP,
-      message: logMsg + '...'
+      message: logMsg
     });
     // eslint-disable-next-line no-console
-    console.log(`${logMsg} ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master...'}`);
-    // Init Socket IO
-    CentralRestServer.socketIOServer = socketio(CentralRestServer.restHttpServer);
-    CentralRestServer.socketIOServer.use((socket: socketio.Socket, next) => {
+    console.log(logMsg);
+    // Init Socket IO Server
+    CentralRestServer.socketIOServer = new Server(CentralRestServer.restHttpServer, {
+      cors: {
+        origin: true,
+        methods: ['GET', 'POST']
+      }
+    });
+    CentralRestServer.socketIOServer.use(jwtAuth.authenticate({ secret: Configuration.getCentralSystemRestServiceConfig().userTokenKey }, (payload, done) => {
+      if (payload) {
+        return done(null, payload);
+      }
+      return done(null, false, 'SocketIO client is trying to connect without a token');
+    }));
+    // Handle Socket IO connection
+    CentralRestServer.socketIOServer.on('connect', (socket: Socket) => {
       Logging.logDebug({
         tenantID: Constants.DEFAULT_TENANT,
         module: MODULE_NAME, method: 'startSocketIO',
         action: ServerAction.SOCKET_IO,
-        message: 'SocketIO client is trying to connect from ' + socket.handshake.headers.origin,
+        message: 'SocketIO client is trying to connect from ' + socket.handshake.headers['origin'],
         detailedMessages: { socketIOid: socket.id, socketIOHandshake: socket.handshake }
       });
-      next();
-    });
-    CentralRestServer.socketIOServer.use(socketioJwt.authorize({
-      secret: Configuration.getCentralSystemRestServiceConfig().userTokenKey,
-      handshake: true,
-      decodedPropertyName: 'decoded_token',
-      // No client-side callback, terminate connection server-side
-      callback: false
-    }));
-    // Handle Socket IO connection
-    CentralRestServer.socketIOServer.on('connection', (socket: SocketIOJwt) => {
-      const userToken: UserToken = socket.decoded_token;
-      if (!userToken || !userToken.tenantID) {
-        console.error('SocketIO client is trying to connect without token');
+      const userToken: UserToken = socket.request['user'];
+      if (!userToken || !userToken['logged_in']) {
+        CentralRestServer.centralSystemRestConfig.debug && console.error('SocketIO client is trying to connect without token from ' + socket.handshake.headers['origin']);
         Logging.logWarning({
           tenantID: Constants.DEFAULT_TENANT,
           module: MODULE_NAME, method: 'startSocketIO',
           action: ServerAction.SOCKET_IO,
-          message: 'SocketIO client is trying to connect without token',
+          message: 'SocketIO client is trying to connect without token from ' + socket.handshake.headers['origin'],
           detailedMessages: { socketIOid: socket.id, socketIOHandshake: socket.handshake }
         });
         socket.disconnect(true);
       } else {
-        // Join Tenant Room
-        socket.join(userToken.tenantID, (error) => {
-          if (error) {
-            console.error(`${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO error when trying to join a room: ${error}`);
-            Logging.logError({
-              tenantID: userToken.tenantID,
-              module: MODULE_NAME, method: 'startSocketIO',
-              action: ServerAction.SOCKET_IO,
-              user: userToken.id,
-              message: `${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO error when trying to join a room '${userToken.tenantID}': ${error}`,
-              detailedMessages: { error, socketIOid: socket.id, socketIOHandshake: socket.handshake }
-            });
-            socket.disconnect(true);
-          } else {
-            console.log(`${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO client is connected on room '${userToken.tenantID}'`);
-            Logging.logDebug({
-              tenantID: userToken.tenantID,
-              module: MODULE_NAME, method: 'startSocketIO',
-              action: ServerAction.SOCKET_IO,
-              user: userToken.id,
-              message: `${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO client is connected on room '${userToken.tenantID}'`,
-              detailedMessages: { socketIOid: socket.id, socketIOHandshake: socket.handshake }
-            });
-          }
+        // Connection authenticated event to client
+        socket.emit('authenticated', {
+          message: 'SocketIO client is authenticated',
         });
+        // Join Tenant Room
+        try {
+          void socket.join(userToken.tenantID);
+          CentralRestServer.centralSystemRestConfig.debug && console.log(`${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO client is connected on room '${userToken.tenantID}'`);
+          Logging.logDebug({
+            tenantID: userToken.tenantID,
+            module: MODULE_NAME, method: 'startSocketIO',
+            action: ServerAction.SOCKET_IO,
+            user: userToken.id,
+            message: `${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO client is connected on room '${userToken.tenantID}'`,
+            detailedMessages: { socketIOid: socket.id, socketIOHandshake: socket.handshake }
+          });
+        } catch (error) {
+          CentralRestServer.centralSystemRestConfig.debug && console.error(`${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO error when trying to join a room: ${error}`);
+          Logging.logError({
+            tenantID: userToken.tenantID,
+            module: MODULE_NAME, method: 'startSocketIO',
+            action: ServerAction.SOCKET_IO,
+            user: userToken.id,
+            message: `${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO error when trying to join a room '${userToken.tenantID}': ${error}`,
+            detailedMessages: { error, socketIOid: socket.id, socketIOHandshake: socket.handshake }
+          });
+          socket.disconnect(true);
+        }
         // Handle Socket IO disconnection
         socket.on('disconnect', (reason: string) => {
-          console.log(`${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO client is disconnected: ${reason}`);
+          CentralRestServer.centralSystemRestConfig.debug && console.log(`${userToken.tenantName ? userToken.tenantName : userToken.tenantID} - ${Utils.buildUserFullName(userToken, false)} - SocketIO client is disconnected: ${reason}`);
           Logging.logDebug({
             tenantID: userToken.tenantID,
             module: MODULE_NAME, method: 'startSocketIO',
@@ -157,7 +157,7 @@ export default class CentralRestServer {
     // Check and send notification change for single record
     setInterval(() => {
       // Send
-      while (CentralRestServer.singleChangeNotifications.length > 0) {
+      while (!Utils.isEmptyArray(CentralRestServer.singleChangeNotifications)) {
         const notification = CentralRestServer.singleChangeNotifications.shift();
         CentralRestServer.socketIOServer.to(notification.tenantID).emit(notification.entity, notification);
       }
@@ -166,7 +166,7 @@ export default class CentralRestServer {
     // Check and send notification change for list
     setInterval(() => {
       // Send
-      while (CentralRestServer.changeNotifications.length > 0) {
+      while (!Utils.isEmptyArray(CentralRestServer.changeNotifications)) {
         const notification = CentralRestServer.changeNotifications.shift();
         CentralRestServer.socketIOServer.to(notification.tenantID).emit(notification.entity, notification);
       }
@@ -212,6 +212,13 @@ export default class CentralRestServer {
 
   public notifyTenant(tenantID: string, action: Action, data: NotificationData): void {
     // Add in buffer
+    // FIXME?: code that duplicate notification
+    this.addSingleChangeNotificationInBuffer({
+      'tenantID': data.id,
+      'entity': Entity.TENANT,
+      'action': action,
+      'data': data
+    });
     this.addSingleChangeNotificationInBuffer({
       'tenantID': tenantID,
       'entity': Entity.TENANT,
@@ -457,15 +464,17 @@ export default class CentralRestServer {
         }
       }
       if (!dups) {
-      // Add it
+        // Add it
         CentralRestServer.singleChangeNotifications.push(notification);
       }
     }
   }
 
-  private hasSocketIOClients(tenantID: string): boolean {
-    if (CentralRestServer.socketIOServer.sockets.adapter.rooms[tenantID]) {
-      return CentralRestServer.socketIOServer.sockets.adapter.rooms[tenantID].length > 0;
+  private hasSocketIOClients(roomID: Room): boolean {
+    const adapter: Adapter = CentralRestServer.socketIOServer.sockets.adapter;
+    const rooms: Map<Room, Set<SocketId>> = adapter.rooms;
+    if (rooms.has(roomID)) {
+      return rooms.get(roomID).size > 0;
     }
     return false;
   }

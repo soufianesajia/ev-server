@@ -9,6 +9,7 @@ import AppAuthError from '../../../../exception/AppAuthError';
 import AppError from '../../../../exception/AppError';
 import Authorizations from '../../../../authorization/Authorizations';
 import BillingFactory from '../../../../integration/billing/BillingFactory';
+import { Car } from '../../../../types/Car';
 import CarStorage from '../../../../storage/mongodb/CarStorage';
 import ConnectionStorage from '../../../../storage/mongodb/ConnectionStorage';
 import Constants from '../../../../utils/Constants';
@@ -20,11 +21,10 @@ import NotificationHandler from '../../../../notification/NotificationHandler';
 import OCPIClientFactory from '../../../../client/ocpi/OCPIClientFactory';
 import { OCPIRole } from '../../../../types/ocpi/OCPIRole';
 import { ServerAction } from '../../../../types/Server';
-import SessionHashService from './SessionHashService';
 import SettingStorage from '../../../../storage/mongodb/SettingStorage';
 import SiteStorage from '../../../../storage/mongodb/SiteStorage';
 import { StatusCodes } from 'http-status-codes';
-import Tag from '../../../../types/Tag';
+import TagStorage from '../../../../storage/mongodb/TagStorage';
 import TenantComponents from '../../../../types/TenantComponents';
 import TenantStorage from '../../../../storage/mongodb/TenantStorage';
 import TransactionStorage from '../../../../storage/mongodb/TransactionStorage';
@@ -32,7 +32,6 @@ import { UserInErrorType } from '../../../../types/InError';
 import UserNotifications from '../../../../types/UserNotifications';
 import UserSecurity from './security/UserSecurity';
 import UserStorage from '../../../../storage/mongodb/UserStorage';
-import UserToken from '../../../../types/UserToken';
 import Utils from '../../../../utils/Utils';
 import UtilsService from './UtilsService';
 import fs from 'fs';
@@ -41,6 +40,67 @@ import moment from 'moment';
 const MODULE_NAME = 'UserService';
 
 export default class UserService {
+
+  public static async handleGetUserDefaultTagCar(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
+    const userID = UserSecurity.filterDefaultTagCarRequestByUserID(req.query);
+    // Check auth
+    if (!Authorizations.canReadTag(req.user)) {
+      throw new AppAuthError({
+        errorCode: HTTPAuthError.ERROR,
+        user: req.user,
+        action: Action.READ, entity: Entity.TAG,
+        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
+      });
+    }
+    // Check auth
+    if (!Authorizations.canReadCar(req.user)) {
+      throw new AppAuthError({
+        errorCode: HTTPAuthError.ERROR,
+        user: req.user,
+        action: Action.READ, entity: Entity.CAR,
+        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
+      });
+    }
+    UtilsService.assertIdIsProvided(action, userID, MODULE_NAME, 'handleGetUserDefaultTagCar', req.user);
+    // Check auth
+    if (!Authorizations.canReadUser(req.user, userID)) {
+      throw new AppAuthError({
+        errorCode: HTTPAuthError.ERROR,
+        user: req.user,
+        action: Action.READ, entity: Entity.USER,
+        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
+      });
+    }
+    // Handle Tag
+    // Get the default Tag
+    let tag = await TagStorage.getDefaultUserTag(req.user.tenantID, userID, {
+      issuer: true
+    }, ['id', 'description']);
+    if (!tag) {
+      // Get the first active Tag
+      tag = await TagStorage.getFirstActiveUserTag(req.user.tenantID, userID, {
+        issuer: true
+      }, ['id', 'description']);
+    }
+    // Handle Car
+    let car: Car;
+    if (Utils.isComponentActiveFromToken(req.user, TenantComponents.CAR)) {
+      // Get the default Car
+      car = await CarStorage.getDefaultUserCar(req.user.tenantID, userID, {
+      }, [
+        'id', 'type', 'licensePlate', 'carCatalog.vehicleMake', 'carCatalog.vehicleModel', 'carCatalog.vehicleModelVersion',
+      ]);
+      if (!car) {
+        // Get the first available car
+        car = await CarStorage.getFirstAvailableUserCar(req.user.tenantID, userID, [
+          'id', 'type', 'licensePlate', 'carCatalog.vehicleMake', 'carCatalog.vehicleModel', 'carCatalog.vehicleModelVersion',
+        ]);
+      }
+    }
+    // Return
+    res.json({ tag, car });
+    next();
+  }
 
   public static async handleAssignSitesToUser(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     UtilsService.assertComponentIsActiveFromToken(req.user, TenantComponents.ORGANIZATION,
@@ -183,9 +243,11 @@ export default class UserService {
       });
     }
     // Check user
-    const user = await UserStorage.getUser(req.user.tenantID, id, { withTag: true });
-    UtilsService.assertObjectExists(action, user, `User '${id}' does not exist`,
-      MODULE_NAME, 'handleDeleteUser', req.user);
+    const user = await UserStorage.getUser(req.user.tenantID, id);
+    UtilsService.assertObjectExists(action, user, `User '${id}' does not exist`, MODULE_NAME, 'handleDeleteUser', req.user);
+    // Get tags
+    const tags = (await TagStorage.getTags(req.user.tenantID,
+      { userIDs: [user.id], withNbrTransactions: true }, Constants.DB_PARAMS_MAX_LIMIT)).result;
     // Deleted
     if (user.deleted) {
       throw new AppError({
@@ -281,16 +343,16 @@ export default class UserService {
       await UserStorage.saveUserAccountVerification(req.user.tenantID, user.id,
         { verificationToken: null, verifiedAt: null });
       // Disable/Delete Tags
-      for (const tag of user.tags) {
+      for (const tag of tags) {
         if (tag.transactionsCount > 0) {
           tag.active = false;
           tag.deleted = true;
           tag.lastChangedOn = new Date();
           tag.lastChangedBy = { id: req.user.id };
           tag.userID = user.id;
-          await UserStorage.saveTag(req.user.tenantID, tag);
+          await TagStorage.saveTag(req.user.tenantID, tag);
         } else {
-          await UserStorage.deleteTag(req.user.tenantID, user.id, tag);
+          await TagStorage.deleteTag(req.user.tenantID, tag.id);
         }
       }
     } else {
@@ -303,7 +365,7 @@ export default class UserService {
         const tenant = await TenantStorage.getTenant(req.user.tenantID);
         const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
         if (ocpiClient) {
-          for (const tag of user.tags) {
+          for (const tag of tags) {
             await ocpiClient.pushToken({
               uid: tag.id,
               type: OCPITokenType.RFID,
@@ -433,7 +495,7 @@ export default class UserService {
     // Clean up request
     delete filteredRequest.passwords;
     // Check User validity
-    Utils.checkIfUserValid(filteredRequest, user, req);
+    UtilsService.checkIfUserValid(filteredRequest, user, req);
     // Update user
     user = {
       ...user,
@@ -442,7 +504,6 @@ export default class UserService {
       email: filteredRequest.email.toLowerCase(),
       lastChangedBy: lastChangedBy,
       lastChangedOn: lastChangedOn,
-      tags: []
     };
     // Update User (override TagIDs because it's not of the same type as in filteredRequest)
     await UserStorage.saveUser(req.user.tenantID, user, true);
@@ -598,7 +659,13 @@ export default class UserService {
       });
     }
     // Get the user
-    const user = await UserStorage.getUser(req.user.tenantID, userID);
+    const user = await UserStorage.getUser(req.user.tenantID, userID,
+      { withImage: true },
+      [
+        'id', 'name', 'firstName', 'email', 'role', 'status', 'issuer', 'locale', 'deleted', 'plateID',
+        'notificationsActive', 'notifications', 'phone', 'mobile', 'iNumber', 'costCenter', 'address'
+      ]
+    );
     UtilsService.assertObjectExists(action, user, `User '${userID}' does not exist`,
       MODULE_NAME, 'handleGetUser', req.user);
     // Deleted?
@@ -612,11 +679,7 @@ export default class UserService {
         action: action
       });
     }
-    // Ok
-    res.json(
-      // Filter
-      UserSecurity.filterUserResponse(user, req.user)
-    );
+    res.json(user);
     next();
   }
 
@@ -660,7 +723,8 @@ export default class UserService {
     // Export with tags
     req.query['WithTag'] = 'true';
     await UtilsService.exportToCSV(req, res, 'exported-users.csv',
-      UserService.getUsers.bind(this), UserService.convertToCSV.bind(this));
+      UserService.getUsers.bind(this),
+      UserService.convertToCSV.bind(this));
   }
 
   public static async handleGetSites(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -743,14 +807,12 @@ export default class UserService {
         onlyRecordCount: filteredRequest.OnlyRecordCount,
         skip: filteredRequest.Skip,
         sort: filteredRequest.Sort
-      }
+      },
+      [
+        'id', 'name', 'firstName', 'email', 'role', 'status', 'issuer',
+        'createdOn', 'lastChangedOn', 'errorCodeDetails', 'errorCode'
+      ]
     );
-    // Filter
-    UserSecurity.filterUsersResponse(users, req.user);
-    // Limit to 100
-    if (users.result.length > 100) {
-      users.result.length = 100;
-    }
     // Return
     res.json(users);
     next();
@@ -769,7 +831,7 @@ export default class UserService {
     // Filter
     const filteredRequest = UserSecurity.filterUserCreateRequest(req.body, req.user);
     // Check Mandatory fields
-    Utils.checkIfUserValid(filteredRequest, null, req);
+    UtilsService.checkIfUserValid(filteredRequest, null, req);
     // Get the email
     const foundUser = await UserStorage.getUserByEmail(req.user.tenantID, filteredRequest.email);
     if (foundUser) {
@@ -1013,429 +1075,11 @@ export default class UserService {
     }
   }
 
-  public static async handleGetTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    const tagID = UserSecurity.filterTagRequestByID(req.query);
-    // Check auth
-    if (!Authorizations.canReadTag(req.user, tagID)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.READ, entity: Entity.TAG,
-        module: MODULE_NAME, method: 'handleGetTag'
-      });
-    }
-    UtilsService.assertIdIsProvided(action, tagID, MODULE_NAME, 'handleGetTag', req.user);
-    // Get the tag
-    const tag = await UserStorage.getTag(req.user.tenantID, tagID, { withUser: true });
-    UtilsService.assertObjectExists(action, tag, `Tag with ID '${tagID}' does not exist`,
-      MODULE_NAME, 'handleGetTag', req.user);
-    // Return
-    res.json(UserSecurity.filterTagResponse(tag, req.user));
-    next();
-  }
-
-  public static async handleGetUserDefaultTagCar(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    const userID = UserSecurity.filterDefaultTagCarRequestByUserID(req.query);
-    // Check auth
-    if (!Authorizations.canReadTag(req.user, userID)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.READ, entity: Entity.TAG,
-        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
-      });
-    }
-    // Check auth
-    if (!Authorizations.canReadCar(req.user)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.READ, entity: Entity.CAR,
-        module: MODULE_NAME, method: 'handleGetUserDefaultTagCar'
-      });
-    }
-    UtilsService.assertIdIsProvided(action, userID, MODULE_NAME, 'handleGetUserDefaultTagCar', req.user);
-    // Get the tag
-    let tagsMDB = await UserStorage.getTags(req.user.tenantID, {
-      userIDs: [userID],
-      defaultTag: true,
-      active: true
-    }, Constants.DB_PARAMS_SINGLE_RECORD);
-    if (tagsMDB.count < 1) {
-      tagsMDB = await UserStorage.getTags(req.user.tenantID, {
-        userIDs: [userID],
-        active: true
-      }, Constants.DB_PARAMS_SINGLE_RECORD);
-    }
-    const tag = tagsMDB.count > 0 ? tagsMDB.result[0] : null;
-    let carsMDB = await CarStorage.getCars(req.user.tenantID,
-      { userIDs: [userID], defaultCar: true },
-      Constants.DB_PARAMS_SINGLE_RECORD);
-    carsMDB = carsMDB.count > 0 ? carsMDB : await CarStorage.getCars(req.user.tenantID,
-      { userIDs: [userID] },
-      Constants.DB_PARAMS_SINGLE_RECORD);
-    const car = carsMDB.count > 0 ? carsMDB.result[0] : null;
-    // Return
-    res.json(UserSecurity.filterUserDefaultTagResponse(tag, car, req.user));
-    next();
-  }
-
-  public static async handleGetTags(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    // Check auth
-    if (!Authorizations.canListTags(req.user)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.LIST, entity: Entity.TAGS,
-        module: MODULE_NAME, method: 'handleGetTags'
-      });
-    }
-    // Filter
-    const filteredRequest = UserSecurity.filterTagsRequest(req.query);
-    // Get the tags
-    const tags = await UserStorage.getTags(req.user.tenantID,
-      {
-        search: filteredRequest.Search,
-        userIDs: filteredRequest.UserID ? filteredRequest.UserID.split('|') : null,
-        issuer: filteredRequest.Issuer,
-        active: filteredRequest.Active,
-        withUser: true,
-      },
-      { limit: filteredRequest.Limit, skip: filteredRequest.Skip, sort: filteredRequest.Sort, onlyRecordCount: filteredRequest.OnlyRecordCount },
-      ['id', 'userID', 'active', 'ocpiToken', 'description', 'issuer', 'default', 'user.id', 'user.name', 'user.firstName', 'user.email',
-        'createdOn', 'createdBy', 'lastChangedOn', 'lastChangedBy'],
-    );
-    // Filter
-    UserSecurity.filterTagsResponse(tags, req.user);
-    // Return
-    res.json(tags);
-    next();
-  }
-
-  public static async handleDeleteTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    // Filter
-    const tagId = UserSecurity.filterTagRequestByID(req.query);
-    UtilsService.assertIdIsProvided(action, tagId, MODULE_NAME, 'handleDeleteTag', req.user);
-    // Check auth
-    if (!Authorizations.canDeleteTag(req.user)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.DELETE, entity: Entity.TAG,
-        module: MODULE_NAME, method: 'handleDeleteTag',
-        value: tagId
-      });
-    }
-    // Get Tag
-    let tag = await UserStorage.getTag(req.user.tenantID, tagId, { withNbrTransactions: true });
-    UtilsService.assertObjectExists(action, tag, `Tag ID '${tagId}' does not exist`,
-      MODULE_NAME, 'handleDeleteTag', req.user);
-    // Only current organizations tags can be deleted
-    if (!tag.issuer) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.GENERAL_ERROR,
-        message: `Tag ID '${tag.id}' not issued by the organization`,
-        module: MODULE_NAME, method: 'handleDeleteTag',
-        user: req.user,
-        action: action
-      });
-    }
-    // Has transactions
-    if (tag.transactionsCount > 0) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.TAG_HAS_TRANSACTIONS,
-        message: `Cannot delete Tag ID '${tag.id}' which has '${tag.transactionsCount}' transaction(s)`,
-        module: MODULE_NAME, method: 'handleDeleteTag',
-        user: req.user,
-        action: action
-      });
-    }
-    // Delete the Tag
-    await UserStorage.deleteTag(req.user.tenantID, tag.userID, tag);
-    const tagsMDB = await UserStorage.getTags(req.user.tenantID, {
-      userIDs: [tag.userID]
-    }, Constants.DB_PARAMS_SINGLE_RECORD);
-    if (tagsMDB.count === 1) {
-      if (!tagsMDB.result[0].default) {
-        tag = tagsMDB.result[0];
-        tag.default = true;
-        await UserStorage.saveTag(req.user.tenantID, tag);
-      }
-    }
-    // OCPI
-    if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI)) {
-      try {
-        const tenant = await TenantStorage.getTenant(req.user.tenantID);
-        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
-        if (ocpiClient) {
-          await ocpiClient.pushToken({
-            uid: tag.id,
-            type: OCPITokenType.RFID,
-            auth_id: tag.userID,
-            visual_number: tag.userID,
-            issuer: tenant.name,
-            valid: false,
-            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
-            last_updated: new Date()
-          });
-        }
-      } catch (error) {
-        Logging.logError({
-          tenantID: req.user.tenantID,
-          module: MODULE_NAME, method: 'handleDeleteTag',
-          action: action,
-          message: `Unable to synchronize tokens of user ${tag.userID} with IOP`,
-          detailedMessages: { error: error.message, stack: error.stack }
-        });
-      }
-    }
-    // Log
-    Logging.logSecurityInfo({
-      tenantID: req.user.tenantID,
-      user: req.user, module: MODULE_NAME, method: 'handleDeleteTag',
-      message: `Tag '${tag.id}' has been deleted successfully`,
-      action: action,
-      detailedMessages: { tag }
-    });
-    res.json(Constants.REST_RESPONSE_SUCCESS);
-    next();
-  }
-
-  public static async handleCreateTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    // Check
-    if (!Authorizations.canCreateTag(req.user)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.CREATE, entity: Entity.TAG,
-        module: MODULE_NAME, method: 'handleCreateTag'
-      });
-    }
-    // Filter
-    const filteredRequest = UserSecurity.filterTagCreateRequest(req.body, req.user);
-    // Check
-    await Utils.checkIfUserTagIsValid(filteredRequest, req);
-    // Check Tag
-    const tag = await UserStorage.getTag(req.user.tenantID, filteredRequest.id.toUpperCase());
-    if (tag) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.TAG_ALREADY_EXIST_ERROR,
-        message: `Tag with ID '${filteredRequest.id}' already exists`,
-        module: MODULE_NAME, method: 'handleCreateTag',
-        user: req.user,
-        action: action
-      });
-    }
-    // Check User
-    const user = await UserStorage.getUser(req.user.tenantID, filteredRequest.userID);
-    UtilsService.assertObjectExists(action, user, `User ID '${filteredRequest.userID}' does not exist`,
-      MODULE_NAME, 'handleCreateTag', req.user);
-    // Only current organization User can be assigned to Tag
-    if (!user.issuer) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.GENERAL_ERROR,
-        message: `User not issued by the organization cannot be assigned to Tag ID '${tag.id}'`,
-        module: MODULE_NAME, method: 'handleCreateTag',
-        user: req.user, actionOnUser: user,
-        action: action
-      });
-    }
-    // Clear default tag
-    if (filteredRequest.default) {
-      await UserStorage.clearTagUserDefault(req.user.tenantID, filteredRequest.userID);
-    }
-    // Create
-    const newTag: Tag = {
-      id: filteredRequest.id.toUpperCase(),
-      description: filteredRequest.description,
-      issuer: true,
-      active: filteredRequest.active,
-      createdBy: { id: req.user.id },
-      createdOn: new Date(),
-      userID: filteredRequest.userID,
-      default: filteredRequest.default ? filteredRequest.default : (await UserStorage.getTags(req.user.tenantID, {
-        userIDs: [filteredRequest.userID]
-      }, Constants.DB_PARAMS_SINGLE_RECORD)).count === 0
-    } as Tag;
-    // Save
-    await UserStorage.saveTag(req.user.tenantID, newTag);
-    // Synchronize badges with IOP
-    if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI)) {
-      try {
-        const tenant = await TenantStorage.getTenant(req.user.tenantID);
-        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
-        if (ocpiClient) {
-          await ocpiClient.pushToken({
-            uid: newTag.id,
-            type: OCPITokenType.RFID,
-            auth_id: newTag.userID,
-            visual_number: newTag.userID,
-            issuer: tenant.name,
-            valid: true,
-            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
-            last_updated: new Date()
-          });
-        }
-      } catch (error) {
-        Logging.logError({
-          tenantID: req.user.tenantID,
-          action: action,
-          module: MODULE_NAME, method: 'handleCreateTag',
-          message: `Unable to synchronize tokens of user ${filteredRequest.userID} with IOP`,
-          detailedMessages: { error: error.message, stack: error.stack }
-        });
-      }
-    }
-    Logging.logSecurityInfo({
-      tenantID: req.user.tenantID,
-      action: action,
-      user: req.user, actionOnUser: user,
-      module: MODULE_NAME, method: 'handleCreateTag',
-      message: `Tag with ID '${newTag.id}'has been created successfully`,
-      detailedMessages: { tag: newTag }
-    });
-    res.json(Object.assign({ id: newTag.id }, Constants.REST_RESPONSE_SUCCESS));
-    next();
-  }
-
-  public static async handleUpdateTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    // Check
-    if (!Authorizations.canUpdateTag(req.user)) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.ERROR,
-        user: req.user,
-        action: Action.UPDATE, entity: Entity.TAG,
-        module: MODULE_NAME, method: 'handleUpdateTag'
-      });
-    }
-    // Filter
-    const filteredRequest = UserSecurity.filterTagUpdateRequest(req.body, req.user);
-    // Check
-    await Utils.checkIfUserTagIsValid(filteredRequest, req);
-    // Get Tag
-    let tag = await UserStorage.getTag(req.user.tenantID, filteredRequest.id, { withNbrTransactions: true });
-    UtilsService.assertObjectExists(action, tag, `Tag ID '${filteredRequest.id}' does not exist`,
-      MODULE_NAME, 'handleUpdateTag', req.user);
-    // Only current organization Tag can be updated
-    if (!tag.issuer) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.GENERAL_ERROR,
-        message: `Tag ID '${tag.id}' not issued by the organization`,
-        module: MODULE_NAME, method: 'handleUpdateTag',
-        user: req.user
-      });
-    }
-    // Get User
-    const user = await UserStorage.getUser(req.user.tenantID, filteredRequest.userID);
-    UtilsService.assertObjectExists(action, user, `User ID '${filteredRequest.userID}' does not exist`,
-      MODULE_NAME, 'handleUpdateTag', req.user);
-    // Only current organization User can be assigned to Tag
-    if (!user.issuer) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.GENERAL_ERROR,
-        message: `User not issued by the organization cannot be assigned to Tag ID '${tag.id}'`,
-        module: MODULE_NAME, method: 'handleUpdateTag',
-        user: req.user, actionOnUser: user,
-        action: action
-      });
-    }
-    // Check User reassignment
-    if (tag.userID !== filteredRequest.userID) {
-      // Has transactions
-      if (tag.transactionsCount > 0) {
-        throw new AppError({
-          source: Constants.CENTRAL_SERVER,
-          errorCode: HTTPError.TAG_HAS_TRANSACTIONS,
-          message: `Cannot change the User of the Tag ID '${tag.id}' which has '${tag.transactionsCount}' transaction(s)`,
-          module: MODULE_NAME, method: 'handleUpdateTag',
-          user: req.user,
-          action: action
-        });
-      }
-      formerTagOwnerID = tag.userID;
-      if (filteredRequest.default) {
-        await UserStorage.clearTagUserDefault(req.user.tenantID, filteredRequest.userID);
-      }
-    }
-    if (filteredRequest.default && !formerTagOwnerID && (tag.default !== filteredRequest.default)) {
-      await UserStorage.clearTagUserDefault(req.user.tenantID, filteredRequest.userID);
-    }
-    // Update
-    tag.description = filteredRequest.description;
-    tag.active = filteredRequest.active;
-    tag.userID = filteredRequest.userID;
-    tag.default = filteredRequest.default ? filteredRequest.default : (await UserStorage.getTags(req.user.tenantID, {
-      userIDs: [filteredRequest.userID]
-    }, Constants.DB_PARAMS_SINGLE_RECORD)).count === 0;
-    tag.lastChangedBy = { id: req.user.id };
-    tag.lastChangedOn = new Date();
-    // Save
-    await UserStorage.saveTag(req.user.tenantID, tag);
-    if (formerTagOwnerID) {
-      const tagsMDB = await UserStorage.getTags(req.user.tenantID, {
-        userIDs: [formerTagOwnerID]
-      }, Constants.DB_PARAMS_SINGLE_RECORD);
-      if (tagsMDB.count === 1) {
-        if (!tagsMDB.result[0].default) {
-          tag = tagsMDB.result[0];
-          tag.default = true;
-          await UserStorage.saveTag(req.user.tenantID, tag);
-        }
-      }
-      // Recompute the former User's Hash (trigger unlog)
-      await SessionHashService.rebuildUserHashID(req.user.tenantID, formerTagOwnerID);
-    }
-    // Synchronize badges with IOP
-    if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI) && (filteredRequest.userID !== tag.userID)) {
-      try {
-        const tenant = await TenantStorage.getTenant(req.user.tenantID);
-        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
-        if (ocpiClient) {
-          await ocpiClient.pushToken({
-            uid: tag.id,
-            type: OCPITokenType.RFID,
-            auth_id: tag.userID,
-            visual_number: tag.userID,
-            issuer: tenant.name,
-            valid: tag.active,
-            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
-            last_updated: new Date()
-          });
-        }
-      } catch (error) {
-        Logging.logError({
-          tenantID: req.user.tenantID,
-          action: action,
-          module: MODULE_NAME, method: 'handleUpdateTag',
-          user: req.user, actionOnUser: user,
-          message: `Unable to synchronize tokens of user ${filteredRequest.userID} with IOP`,
-          detailedMessages: { error: error.message, stack: error.stack }
-        });
-      }
-    }
-    Logging.logSecurityInfo({
-      tenantID: req.user.tenantID,
-      action: action,
-      module: MODULE_NAME, method: 'handleUpdateTag',
-      message: `Tag with ID '${tag.id}'has been updated successfully`,
-      user: req.user, actionOnUser: user,
-      detailedMessages: { tag: tag }
-    });
-    res.json(Constants.REST_RESPONSE_SUCCESS);
-    next();
-  }
-
-  private static convertToCSV(loggedUser: UserToken, users: User[], writeHeader = true): string {
+  private static convertToCSV(req: Request, users: User[], writeHeader = true): string {
     let csv = '';
     // Header
     if (writeHeader) {
-      csv = `ID${Constants.CSV_SEPARATOR}Name${Constants.CSV_SEPARATOR}First Name${Constants.CSV_SEPARATOR}Role${Constants.CSV_SEPARATOR}Status${Constants.CSV_SEPARATOR}Email${Constants.CSV_SEPARATOR}Nbr Badges${Constants.CSV_SEPARATOR}Badges${Constants.CSV_SEPARATOR}EULA Accepted On${Constants.CSV_SEPARATOR}Created On${Constants.CSV_SEPARATOR}Changed On${Constants.CSV_SEPARATOR}Changed By\r\n`;
+      csv = `ID${Constants.CSV_SEPARATOR}Name${Constants.CSV_SEPARATOR}First Name${Constants.CSV_SEPARATOR}Role${Constants.CSV_SEPARATOR}Status${Constants.CSV_SEPARATOR}Email${Constants.CSV_SEPARATOR}EULA Accepted On${Constants.CSV_SEPARATOR}Created On${Constants.CSV_SEPARATOR}Changed On${Constants.CSV_SEPARATOR}Changed By\r\n`;
     }
     // Content
     for (const user of users) {
@@ -1445,12 +1089,10 @@ export default class UserService {
       csv += `${user.role}` + Constants.CSV_SEPARATOR;
       csv += `${user.status}` + Constants.CSV_SEPARATOR;
       csv += `${user.email}` + Constants.CSV_SEPARATOR;
-      csv += `${user.tags ? user.tags.length : 0}` + Constants.CSV_SEPARATOR;
-      csv += `${user.tags ? user.tags.map((tag) => tag.id).join(',') : ''}` + Constants.CSV_SEPARATOR;
       csv += `${moment(user.eulaAcceptedOn).format('YYYY-MM-DD')}` + Constants.CSV_SEPARATOR;
       csv += `${moment(user.createdOn).format('YYYY-MM-DD')}` + Constants.CSV_SEPARATOR;
       csv += `${moment(user.lastChangedOn).format('YYYY-MM-DD')}` + Constants.CSV_SEPARATOR;
-      csv += `${user.lastChangedBy ? user.lastChangedBy as string : ''}\r\n`;
+      csv += `${user.lastChangedBy ? Utils.buildUserFullName(user.lastChangedBy as User, false) : ''}\r\n`;
     }
     return csv;
   }
@@ -1481,7 +1123,6 @@ export default class UserService {
       {
         search: filteredRequest.Search,
         issuer: filteredRequest.Issuer,
-        withTag: filteredRequest.WithTag,
         siteIDs: (filteredRequest.SiteID ? filteredRequest.SiteID.split('|') : null),
         roles: (filteredRequest.Role ? filteredRequest.Role.split('|') : null),
         statuses: (filteredRequest.Status ? filteredRequest.Status.split('|') : null),
@@ -1489,17 +1130,19 @@ export default class UserService {
         excludeUserIDs: (filteredRequest.ExcludeUserIDs ? filteredRequest.ExcludeUserIDs.split('|') : null),
         includeCarUserIDs: (filteredRequest.IncludeCarUserIDs ? filteredRequest.IncludeCarUserIDs.split('|') : null),
         notAssignedToCarID: filteredRequest.NotAssignedToCarID,
-        tagIDs: (filteredRequest.TagID ? filteredRequest.TagID.split('|') : null),
       },
       {
         limit: filteredRequest.Limit,
         skip: filteredRequest.Skip,
         sort: filteredRequest.Sort,
         onlyRecordCount: filteredRequest.OnlyRecordCount
-      }
+      },
+      [
+        'id', 'name', 'firstName', 'email', 'role', 'status', 'issuer', 'createdOn', 'createdBy',
+        'lastChangedOn', 'lastChangedBy', 'eulaAcceptedOn', 'eulaAcceptedVersion', 'locale',
+        'billingData.customerID', 'billingData.lastChangedOn'
+      ]
     );
-    // Filter
-    UserSecurity.filterUsersResponse(users, req.user);
     return users;
   }
 }

@@ -1,8 +1,6 @@
 import Address from './Address';
 import { BillingUserData } from './Billing';
-import { Car } from './Car';
 import CreatedUpdatedProps from './CreatedUpdatedProps';
-import Tag from './Tag';
 import UserNotifications from './UserNotifications';
 
 export default interface User extends CreatedUpdatedProps {
@@ -33,12 +31,12 @@ export default interface User extends CreatedUpdatedProps {
   passwordBlockedUntil: Date;
   verificationToken?: string;
   verifiedAt?: Date;
-  tags?: Tag[];
   billingData?: BillingUserData;
   mobileOs: string;
   mobileToken: string;
   mobileLastChangedOn: Date;
   lastSelectedCarID?: string;
+  authorizationID?: string;
 }
 
 export interface UserSite {
@@ -46,11 +44,6 @@ export interface UserSite {
   siteID: string;
   siteAdmin: boolean;
   siteOwner: boolean;
-}
-
-export interface UserDefaultTagCar {
-  car?: Car;
-  tag?: Tag;
 }
 
 export interface UserCar extends CreatedUpdatedProps {

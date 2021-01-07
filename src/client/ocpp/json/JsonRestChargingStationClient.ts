@@ -14,7 +14,7 @@ const MODULE_NAME = 'JsonRestChargingStationClient';
 export default class JsonRestChargingStationClient extends ChargingStationClient {
   private serverURL: string;
   private chargingStation: ChargingStation;
-  private requests: { [messageUID: string]: { resolve?: (result: object) => void; reject?: (error: object) => void; command: ServerAction } };
+  private requests: { [messageUID: string]: { resolve?: (result: Record<string, unknown>) => void; reject?: (error: Record<string, unknown>) => void; command: ServerAction } };
   private wsConnection: WSClient;
   private tenantID: string;
 
@@ -86,7 +86,7 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
     return this.sendMessage(this.buildRequest(Command.UPDATE_FIRMWARE, params));
   }
 
-  private async openConnection(): Promise<any> {
+  private async openConnection(): Promise<unknown> {
     // Log
     Logging.logInfo({
       tenantID: this.tenantID,
@@ -144,12 +144,12 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
         }
       };
       // Handle Error Message
-      this.wsConnection.onerror = (error) => {
+      this.wsConnection.onerror = (error: Error) => {
         if (Utils.isProductionEnv()) {
           // Log
           Logging.logException(
             error,
-            ServerAction.WS_REST_CONNECTION_CLOSED,
+            ServerAction.WS_REST_CLIENT_CONNECTION_ERROR,
             this.chargingStation.id,
             MODULE_NAME, 'onError',
             this.tenantID
@@ -166,7 +166,7 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
           // Check if this corresponds to a request
           if (this.requests[messageJson[1]]) {
             // Check message type
-            if (messageJson[0] === MessageType.ERROR_MESSAGE) {
+            if (messageJson[0] === MessageType.CALL_ERROR_MESSAGE) {
               // Error message
               Logging.logError({
                 tenantID: this.tenantID,
@@ -231,7 +231,7 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
       // Open WS Connection
       await this.openConnection();
       // Check if wsConnection is ready
-      if (this.wsConnection.isConnectionOpen()) {
+      if (this.wsConnection?.isConnectionOpen()) {
         // Send
         this.wsConnection.send(JSON.stringify(request));
         // Set the resolve function

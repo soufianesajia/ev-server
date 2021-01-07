@@ -57,7 +57,9 @@ export default class SoapChargingStationClient extends ChargingStationClient {
           // Log
           Logging.logError({
             tenantID: scsc.tenantID,
-            module: MODULE_NAME, method: 'constructor',
+            action: ServerAction.CHARGING_STATION_CLIENT_INITIALIZATION,
+            source: scsc.chargingStation.id,
+            module: MODULE_NAME, method: 'getChargingStationClient',
             message: `OCPP version ${scsc.chargingStation.ocppVersion} not supported`
           });
           reject(`OCPP version ${scsc.chargingStation.ocppVersion} not supported`);
@@ -70,8 +72,9 @@ export default class SoapChargingStationClient extends ChargingStationClient {
           // Log
           Logging.logError({
             tenantID: scsc.tenantID,
+            action: ServerAction.CHARGING_STATION_CLIENT_INITIALIZATION,
             source: scsc.chargingStation.id,
-            module: MODULE_NAME, method: 'constructor',
+            module: MODULE_NAME, method: 'getChargingStationClient',
             message: `Error when creating SOAP client: ${error.toString()}`,
             detailedMessages: { error: error.message, stack: error.stack }
           });
@@ -263,7 +266,7 @@ export default class SoapChargingStationClient extends ChargingStationClient {
     Logging.logChargingStationClientSendAction(MODULE_NAME, this.tenantID, this.chargingStation.id, ServerAction.CHARGING_STATION_GET_CONFIGURATION,
       [params.key, { headers: this.client.getSoapHeaders() }]);
     // Set request
-    const request: any = {
+    const request: { getConfigurationRequest: OCPPGetConfigurationCommandParam } = {
       'getConfigurationRequest': {}
     };
     // Key provided?
