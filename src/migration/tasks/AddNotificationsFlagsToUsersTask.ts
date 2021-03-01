@@ -73,9 +73,9 @@ export default class AddNotificationsFlagsToUsersTask extends MigrationTask {
         sendAccountVerificationNotification: user.notifications?.sendAccountVerificationNotification ? user.notifications.sendAccountVerificationNotification : false,
         sendAdminAccountVerificationNotification: user.notifications?.sendAdminAccountVerificationNotification ? user.notifications.sendAdminAccountVerificationNotification : false,
       };
-      // Add new prop
+      // Initialization of new notification
+      // Please remove existing ones when changing migration version !
       if (user.role === UserRole.ADMIN) {
-        user.notifications.sendEndUserErrorNotification = true;
         user.notifications.sendAdminAccountVerificationNotification = true;
       }
       // Update
