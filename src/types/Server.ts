@@ -410,6 +410,8 @@ export enum ServerAction {
   BILLING_CREATE_TRANSACTION_INVOICE = 'BillingCreateTransactionInvoice',
   BILLING_NEW_INVOICE = 'BillingNewInvoice',
   BILLING_SETUP_PAYMENT_METHOD = 'BillingSetupPaymentMethod',
+  BILLING_PAYMENT_METHODS_LIST = 'BillingPaymentMethodsList',
+  BILLING_DELETE_PAYMENT_METHOD = 'BillingDeletePaymentMethod',
   BILLING_CHARGE_INVOICE = 'BillingChargeInvoice',
   BILLING_WEB_HOOK = 'BillingWebHook',
 
@@ -484,5 +486,8 @@ export enum ServerRoute {
 
   REST_PING = 'ping',
 
-  REST_TENANTS = 'tenants'
+  REST_TENANTS = 'tenants',
+
+  // shouldn't we have this rest here ?? for the route building
+  // REST_BILLING_PAYMENT_METHODS = 'billing/paymentmethods'
 }
