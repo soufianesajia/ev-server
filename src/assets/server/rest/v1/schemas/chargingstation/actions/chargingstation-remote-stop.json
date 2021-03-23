@@ -1,0 +1,20 @@
+{
+  "title": "Remote stop a transaction for Charging Station",
+  "type": "object",
+  "properties": {
+    "chargeBoxID": {
+      "$ref": "chargingstation.json#/definitions/id"
+    },
+    "args": {
+      "type": "object",
+      "properties": {
+        "transactionId": {
+          "$ref": "transaction.json#/definitions/id"
+        }
+      }
+    }
+  },
+  "required": [
+    "chargeBoxID", "transactionId"
+  ]
+}
