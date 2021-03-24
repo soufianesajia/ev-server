@@ -19,6 +19,7 @@ import Constants from '../../../../utils/Constants';
 import CpoOCPIClient from '../../../../client/ocpi/CpoOCPIClient';
 import CpoOICPClient from '../../../../client/oicp/CpoOICPClient';
 import { DataResult } from '../../../../types/DataResult';
+import { HttpChargingStationRequest } from '../../../../types/requests/HttpChargingStationRequest';
 import I18nManager from '../../../../utils/I18nManager';
 import LockingHelper from '../../../../locking/LockingHelper';
 import LockingManager from '../../../../locking/LockingManager';
@@ -1165,7 +1166,44 @@ export default class ChargingStationService {
   public static async handleAction(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter - Type is hacked because code below is. Would need approval to change code structure.
     const command = action.slice(15) as Command;
-    const filteredRequest = ChargingStationValidator.getInstance().validateChargingStationActionReq(req.body);
+    let filteredRequest;
+    const chargingStationValidator = ChargingStationValidator.getInstance();
+    switch (command) {
+      case Command.RESET:
+        filteredRequest = chargingStationValidator.validateChargingStationResetReq(req.body);
+        break;
+      case Command.CLEAR_CACHE:
+        filteredRequest = chargingStationValidator.validateChargingStationsGetReq(req.body);
+        break;
+      case Command.GET_CONFIGURATION:
+        filteredRequest = chargingStationValidator.validateChargingStationGetOcppConfigurationReq(req.body);
+        break;
+      case Command.CHANGE_CONFIGURATION:
+        filteredRequest = chargingStationValidator.validateChargingStationUpdateOcppConfigurationReq(req.body);
+        break;
+      case Command.REMOTE_START_TRANSACTION:
+        filteredRequest = chargingStationValidator.validateChargingStationRemoteStartReq(req.body);
+        break;
+      case Command.REMOTE_STOP_TRANSACTION:
+        filteredRequest = chargingStationValidator.validateChargingStationRemoteStopReq(req.body);
+        break;
+      case Command.UNLOCK_CONNECTOR:
+        filteredRequest = chargingStationValidator.validateChargingStationUnlockConnectorReq(req.body);
+        break;
+      case Command.GET_COMPOSITE_SCHEDULE:
+        filteredRequest = chargingStationValidator.validateChargingStationGetCompositeScheduleReq(req.body);
+        break;
+      case Command.GET_DIAGNOSTICS:
+        filteredRequest = chargingStationValidator.validateChargingStationGetDiagnosticsReq(req.body);
+        break;
+      case Command.UPDATE_FIRMWARE:
+        filteredRequest = chargingStationValidator.validateChargingStationUpdateFirmwareReq(req.body);
+        break;
+      case Command.CHANGE_AVAILABILITY:
+        filteredRequest = chargingStationValidator.validateChargingStationChangeAvailabilityReq(req.body);
+        break;
+    }
+    // const filteredRequest = ChargingStationValidator.getInstance().validateChargingStationActionReq(req.body);
     UtilsService.assertIdIsProvided(action, filteredRequest.chargeBoxID, MODULE_NAME, 'handleAction', req.user);
     // Get the Charging station
     const chargingStation = await ChargingStationStorage.getChargingStation(req.user.tenantID, filteredRequest.chargeBoxID);

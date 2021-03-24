@@ -1,7 +1,9 @@
 import { ChargePoint, ConnectorType, CurrentType, PhaseAssignmentToGrid } from '../ChargingStation';
 
+import { ChargingRateUnitType } from '../ChargingProfile';
 import HttpByIDRequest from './HttpByIDRequest';
 import HttpDatabaseRequest from './HttpDatabaseRequest';
+import { OCPPAvailabilityType } from '../ocpp/OCPPClient';
 
 export interface HttpTriggerSmartChargingRequest {
   SiteAreaID: string;
@@ -106,4 +108,76 @@ export interface HttpIsAuthorizedRequest {
 
 export interface HttpChargingStationGetFirmwareRequest {
   FileName: string;
+}
+
+export interface HttpChargingStationResetRequest extends HttpChargingStationCommandRequest {
+  type: 'Soft' | 'Hard';
+}
+
+export interface HttpChargingStationGetOcppConfigurationRequest extends HttpChargingStationCommandRequest {
+  type: 'Soft' | 'Hard';
+  args: {
+    key: string[];
+  }
+}
+
+export interface HttpChargingStationUpdateOcppConfigurationRequest extends HttpChargingStationCommandRequest {
+  type: 'Soft' | 'Hard';
+  args: {
+    key: string;
+    value: string;
+  }
+}
+
+
+export interface HttpChargingStationRemoteStartRequest extends HttpChargingStationCommandRequest {
+  cardID: string;
+  args: {
+    tagID: string;
+    connectorId: number;
+  }
+}
+
+export interface HttpChargingStationRemoteStopRequest extends HttpChargingStationCommandRequest {
+  args: {
+    transactionId: string;
+  }
+}
+
+export interface HttpChargingStationUnlockConnectorRequest extends HttpChargingStationCommandRequest {
+  connectorId: string;
+}
+
+export interface HttpChargingStationGetCompositeScheduleRequest extends HttpChargingStationCommandRequest {
+  args: {
+    connectorId: number;
+    duration: number;
+    chargingRateUnit: ChargingRateUnitType
+  }
+}
+
+export interface HttpChargingStationGetDiagnosticsRequest extends HttpChargingStationCommandRequest {
+  args: {
+    location: string;
+    retries: number;
+    retryInterval: number,
+    startTime: string;
+    stopTime: string;
+  }
+}
+
+export interface HttpChargingStationUpdateFirmwareRequest extends HttpChargingStationCommandRequest {
+  args: {
+    location: string;
+    retries: number;
+    retryInterval: number,
+    retrieveDate: string;
+  }
+}
+
+export interface HttpChargingStationChangeAvailabilityRequest extends HttpChargingStationCommandRequest {
+  args: {
+    connectorId: number;
+    type: OCPPAvailabilityType
+  }
 }
