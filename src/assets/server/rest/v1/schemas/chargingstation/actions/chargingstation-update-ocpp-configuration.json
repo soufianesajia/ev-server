@@ -1,5 +1,5 @@
 {
-  "title": "Update Charging Station firmware",
+  "title": "Update Charging Station OCPP Configuration",
   "type": "object",
   "properties": {
     "chargeBoxID": {
@@ -10,13 +10,16 @@
       "properties": {
         "key": {
           "type": "string",
-          "sanitize": "mongo",
-          "enum": ["Soft", "Hard"]
+          "sanitize": "mongo"
+        },
+        "value": {
+          "type": "string",
+          "sanitize": "mongo"
         }
       }
     }
   },
   "required": [
-    "chargeBoxID", "args.type"
+    "chargeBoxID", "args.key", "args.value"
   ]
 }
