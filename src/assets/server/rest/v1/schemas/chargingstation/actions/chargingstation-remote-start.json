@@ -9,7 +9,7 @@
       "type": "object",
       "properties": {
         "connectorId": {
-          "$ref": "chargingstation.json#/definitions/connector/properties/connectorId"
+          "$ref": "chargingstation.json#/definitions/connectorID"
         },
         "tagID": {
           "$ref": "tag.json#/definitions/id"
