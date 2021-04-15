@@ -4,6 +4,8 @@ import MigrationTask from '../MigrationTask';
 import { ServerAction } from '../../types/Server';
 import Tenant from '../../types/Tenant';
 import TenantStorage from '../../storage/mongodb/TenantStorage';
+import Utils from '../../utils/Utils';
+import { Voltage } from '../../types/ChargingStation';
 import global from '../../types/GlobalType';
 
 const MODULE_NAME = 'AddInstantAmpsToConsumptionsTask';
@@ -25,7 +27,7 @@ export default class AddConsumptionAmpsToConsumptionsTask extends MigrationTask 
       [
         {
           '$set': {
-            'consumptionAmps': { '$divide': ['$consumptionWh', 230] },
+            'consumptionAmps': { '$divide': ['$consumptionWh', Voltage.VOLTAGE_230] },
           }
         }
       ]
@@ -33,11 +35,11 @@ export default class AddConsumptionAmpsToConsumptionsTask extends MigrationTask 
     modifiedCount += result.modifiedCount;
     // Log in the default tenant
     if (modifiedCount > 0) {
-      Logging.logDebug({
+      await Logging.logDebug({
         tenantID: Constants.DEFAULT_TENANT,
         action: ServerAction.MIGRATION,
         module: MODULE_NAME, method: 'migrateTenant',
-        message: `${modifiedCount} Consumptions have been updated in Tenant '${tenant.name}'`
+        message: `${modifiedCount} Consumptions have been updated in Tenant ${Utils.buildTenantName(tenant)}`
       });
     }
   }

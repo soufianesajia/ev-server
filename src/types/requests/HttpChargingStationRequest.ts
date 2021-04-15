@@ -1,4 +1,4 @@
-import { ChargePoint, ConnectorType, CurrentType, PhaseAssignmentToGrid } from '../ChargingStation';
+import { ChargePoint, ConnectorType, CurrentType, PhaseAssignmentToGrid, Voltage } from '../ChargingStation';
 
 import { ChargingRateUnitType } from '../ChargingProfile';
 import HttpByIDRequest from './HttpByIDRequest';
@@ -65,7 +65,7 @@ export interface HttpChargingStationParamsUpdateRequest {
     type: ConnectorType;
     power: number;
     amperage: number;
-    voltage: number;
+    voltage: Voltage;
     currentType: CurrentType;
     numberOfConnectedPhase: number;
     phaseAssignmentToGrid: PhaseAssignmentToGrid;

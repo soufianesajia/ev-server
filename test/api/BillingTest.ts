@@ -10,10 +10,10 @@ import ContextDefinition from './context/ContextDefinition';
 import ContextProvider from './context/ContextProvider';
 import Cypher from '../../src/utils/Cypher';
 import Factory from '../factories/Factory';
-import { HTTPAuthError } from '../../src/types/HTTPError';
 import MongoDBStorage from '../../src/storage/mongodb/MongoDBStorage';
 import { ObjectID } from 'mongodb';
 import SiteContext from './context/SiteContext';
+import { StatusCodes } from 'http-status-codes';
 import StripeBillingIntegration from '../../src/integration/billing/stripe/StripeBillingIntegration';
 import TenantContext from './context/TenantContext';
 import TestConstants from './client/utils/TestConstants';
@@ -154,11 +154,11 @@ class TestData {
     return (draftInvoices && draftInvoices.length > 0) ? draftInvoices[0] : null;
   }
 
-  public async getNumberOfItems(userId?: string): Promise<number> {
+  public async getNumberOfSessions(userId?: string): Promise<number> {
     // ACHTUNG: There is no data after running: npm run mochatest:createContext
     // In that situation we return 0!
     const draftInvoice = await this.getLatestDraftInvoice(userId);
-    return (draftInvoice) ? draftInvoice.nbrOfItems : 0;
+    return (draftInvoice) ? draftInvoice.sessions?.length : 0;
   }
 }
 
@@ -199,11 +199,11 @@ describe('Billing Service', function() {
 
       it('should add an item to a DRAFT invoice after a transaction', async () => {
         await testData.userService.billingApi.forceSynchronizeUser({ id: testData.userContext.id });
-        const itemsBefore = await testData.getNumberOfItems(testData.userContext.id);
+        const itemsBefore = await testData.getNumberOfSessions(testData.userContext.id);
         const transactionID = await testData.generateTransaction(testData.userContext);
         expect(transactionID).to.not.be.null;
         // await testData.userService.billingApi.synchronizeInvoices({});
-        const itemsAfter = await testData.getNumberOfItems(testData.userContext.id);
+        const itemsAfter = await testData.getNumberOfSessions(testData.userContext.id);
         expect(itemsAfter).to.be.gt(itemsBefore);
       });
 
@@ -237,8 +237,8 @@ describe('Billing Service', function() {
         );
         testData.createdUsers.push(fakeUser);
         // Let's check that the corresponding billing user exists as well (a Customer in the STRIPE DB)
-        let exists = await testData.billingImpl.userExists(fakeUser);
-        expect(exists).to.be.true;
+        let billingUser = await testData.billingImpl.getUser(fakeUser);
+        expect(billingUser).to.be.not.null;
         // Let's update the new user
         fakeUser.firstName = 'Test';
         fakeUser.name = 'NAME';
@@ -249,7 +249,7 @@ describe('Billing Service', function() {
           false
         );
         // Let's check that the corresponding billing user was updated as well
-        const billingUser = await testData.billingImpl.getUser(fakeUser);
+        billingUser = await testData.billingImpl.getUser(fakeUser);
         expect(billingUser.name).to.be.eq(fakeUser.firstName + ' ' + fakeUser.name);
         // Let's delete the user
         await testData.userService.deleteEntity(
@@ -257,24 +257,23 @@ describe('Billing Service', function() {
           { id: testData.createdUsers[0].id }
         );
         // Verify that the corresponding billing user is gone
-        exists = await testData.billingImpl.userExists(testData.createdUsers[0]);
+        const exists = await testData.billingImpl.isUserSynchronized(testData.createdUsers[0]);
         expect(exists).to.be.false;
         testData.createdUsers.shift();
-
       });
-
 
       it('should add an item to the existing invoice after a transaction', async () => {
         await testData.userService.billingApi.forceSynchronizeUser({ id: testData.userContext.id });
-        const itemsBefore = await testData.getNumberOfItems(testData.userContext.id);
+        const itemsBefore = await testData.getNumberOfSessions(testData.userContext.id);
         const transactionID = await testData.generateTransaction(testData.userContext);
         expect(transactionID).to.not.be.null;
         // await testData.userService.billingApi.synchronizeInvoices({});
-        const itemsAfter = await testData.getNumberOfItems(testData.userContext.id);
+        const itemsAfter = await testData.getNumberOfSessions(testData.userContext.id);
         expect(itemsAfter).to.be.eq(itemsBefore + 1);
       });
 
-      it('should synchronize 1 invoice after a transaction', async () => {
+      xit('should synchronize 1 invoice after a transaction', async () => {
+        // TODO - Synchronize Invoices is for now disabled - c.f.: __liveMode!
         await testData.userService.billingApi.synchronizeInvoices({});
         const transactionID = await testData.generateTransaction(testData.userContext);
         expect(transactionID).to.not.be.null;
@@ -285,7 +284,7 @@ describe('Billing Service', function() {
 
       it('Should list invoices', async () => {
         const response = await testData.userService.billingApi.readAll({}, TestConstants.DEFAULT_PAGING, TestConstants.DEFAULT_ORDERING, '/client/api/BillingUserInvoices');
-        expect(response.status).to.be.eq(200);
+        expect(response.status).to.be.eq(StatusCodes.OK);
         expect(response.data.result.length).to.be.gt(0);
       });
 
@@ -313,7 +312,11 @@ describe('Billing Service', function() {
           fakeUser
         );
         testData.createdUsers.push(fakeUser);
-        fakeUser.billingData = { customerID: 'cus_utbilling_fake_user' }; // TODO - not supported anymore
+        fakeUser.billingData = {
+          customerID: 'cus_utbilling_fake_user',
+          liveMode: false,
+          lastChangedOn: new Date(),
+        }; // TODO - not supported anymore
         await testData.userService.updateEntity(
           testData.userService.userApi,
           fakeUser
@@ -339,7 +342,7 @@ describe('Billing Service', function() {
 
       it('Should not be able to test connection to Billing Provider', async () => {
         const response = await testData.userService.billingApi.testConnection({}, TestConstants.DEFAULT_PAGING, TestConstants.DEFAULT_ORDERING);
-        expect(response.status).to.be.eq(HTTPAuthError.FORBIDDEN);
+        expect(response.status).to.be.eq(StatusCodes.FORBIDDEN);
       });
 
       it('Should not create a user', async () => {
@@ -353,7 +356,7 @@ describe('Billing Service', function() {
           false
         );
         testData.createdUsers.push(fakeUser);
-        expect(response.status).to.be.eq(HTTPAuthError.FORBIDDEN);
+        expect(response.status).to.be.eq(StatusCodes.FORBIDDEN);
       });
 
       it('Should not update a user', async () => {
@@ -368,7 +371,7 @@ describe('Billing Service', function() {
           fakeUser,
           false
         );
-        expect(response.status).to.be.eq(HTTPAuthError.FORBIDDEN);
+        expect(response.status).to.be.eq(StatusCodes.FORBIDDEN);
       });
 
       it('Should not delete a user', async () => {
@@ -377,7 +380,7 @@ describe('Billing Service', function() {
           { id: 0 },
           false
         );
-        expect(response.status).to.be.eq(HTTPAuthError.FORBIDDEN);
+        expect(response.status).to.be.eq(StatusCodes.FORBIDDEN);
       });
 
       it('Should not synchronize a user', async () => {
@@ -385,7 +388,7 @@ describe('Billing Service', function() {
           ...Factory.user.build(),
         } as User;
         const response = await testData.userService.billingApi.synchronizeUser({ id: fakeUser.id });
-        expect(response.status).to.be.eq(HTTPAuthError.FORBIDDEN);
+        expect(response.status).to.be.eq(StatusCodes.FORBIDDEN);
       });
 
       it('Should not force synchronization of a user', async () => {
@@ -393,7 +396,7 @@ describe('Billing Service', function() {
           ...Factory.user.build(),
         } as User;
         const response = await testData.userService.billingApi.forceSynchronizeUser({ id: fakeUser.id });
-        expect(response.status).to.be.eq(HTTPAuthError.FORBIDDEN);
+        expect(response.status).to.be.eq(StatusCodes.FORBIDDEN);
       });
 
       xit('Should list invoices', async () => {
@@ -406,13 +409,6 @@ describe('Billing Service', function() {
         );
         const response = await testData.userService.billingApi.readAll({}, TestConstants.DEFAULT_PAGING, TestConstants.DEFAULT_ORDERING, '/client/api/BillingUserInvoices');
         expect(response.data.result.length).to.be.eq(2);
-      });
-
-      xit('Should download invoice as PDF', async () => {
-        const response = await testData.userService.billingApi.readAll({ Status: BillingInvoiceStatus.OPEN }, TestConstants.DEFAULT_PAGING, TestConstants.DEFAULT_ORDERING, '/client/api/BillingUserInvoices');
-        expect(response.data.result.length).to.be.gt(0);
-        const downloadResponse = await testData.userService.billingApi.downloadInvoiceDocument({ ID: response.data.result[0].id });
-        expect(downloadResponse.headers['content-type']).to.be.eq('application/pdf');
       });
 
       it('should create an invoice after a transaction', async () => {
@@ -432,11 +428,11 @@ describe('Billing Service', function() {
           testData.userContext
         );
         await testData.userService.billingApi.synchronizeInvoices({});
-        const itemsBefore = await testData.getNumberOfItems(basicUser.id);
+        const itemsBefore = await testData.getNumberOfSessions(basicUser.id);
         const transactionID = await testData.generateTransaction(testData.userContext);
         expect(transactionID).to.not.be.null;
         await testData.userService.billingApi.synchronizeInvoices({});
-        const itemsAfter = await testData.getNumberOfItems(basicUser.id);
+        const itemsAfter = await testData.getNumberOfSessions(basicUser.id);
         expect(itemsAfter).to.be.eq(itemsBefore + 1);
       });
     });
@@ -487,7 +483,7 @@ describe('Billing Service', function() {
         testData.createdUsers.push(fakeUser);
         testData.billingImpl = await testData.setBillingSystemValidCredentials();
         await testData.userService.billingApi.synchronizeUser({ id: fakeUser.id });
-        const userExists = await testData.billingImpl.userExists(fakeUser);
+        const userExists = await testData.billingImpl.isUserSynchronized(fakeUser);
         expect(userExists).to.be.true;
       });
     });

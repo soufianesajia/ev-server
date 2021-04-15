@@ -5,9 +5,12 @@ import { OcppParameter } from '../types/ChargingStation';
 import Tenant from '../types/Tenant';
 
 export default class Constants {
+  public static readonly ONE_BILLION = 1000000000;
+
   public static readonly BOOT_NOTIFICATION_WAIT_TIME = 60;
 
-  public static readonly CSV_SEPARATOR = '\t'; // Cannot store regex in enum
+  public static readonly CSV_SEPARATOR = ',';
+  public static readonly CR_LF = '\r\n';
 
   public static readonly PERF_MAX_DATA_VOLUME_KB = 128;
   public static readonly PERF_MAX_RESPONSE_TIME_MILLIS = 500;
@@ -31,6 +34,8 @@ export default class Constants {
   public static readonly EXPORT_PDF_PAGE_SIZE = 100;
   public static readonly EXPORT_PAGE_SIZE = 1000;
   public static readonly EXPORT_RECORD_MAX_COUNT = 100000;
+  public static readonly IMPORT_PAGE_SIZE = 1000;
+  public static readonly IMPORT_BATCH_INSERT_SIZE = 250;
 
   public static readonly DEFAULT_TENANT = 'default';
   public static readonly DEFAULT_TENANT_OBJECT = Object.freeze({
@@ -224,12 +229,17 @@ export default class Constants {
   public static readonly REST_RESPONSE_SUCCESS = Object.freeze({ status: 'Success' });
 
   public static readonly DELAY_SMART_CHARGING_EXECUTION_MILLIS = 3000;
-  public static readonly DELAY_REQUEST_CONFIGURATION_EXECUTION_MILLIS = 3000;
+  public static readonly DELAY_CHANGE_CONFIGURATION_EXECUTION_MILLIS = 10000;
 
   public static readonly CHARGING_STATION_CONFIGURATION = 'Configuration';
 
   public static readonly CENTRAL_SERVER = 'Central Server';
+
   public static readonly OCPI_SERVER = 'OCPI Server';
+  public static readonly OCPI_SEPARATOR = '*';
+  public static readonly OCPI_RECORDS_LIMIT = 25;
+  public static readonly OCPI_MAX_PARALLEL_REQUESTS = 5;
+
   public static readonly OICP_SERVER = 'OICP Server';
 
   // OICP constants
@@ -382,6 +392,16 @@ export default class Constants {
     measurand: OCPPMeasurand.STATE_OF_CHARGE,
     location: OCPPLocation.EV,
     format: OCPPValueFormat.RAW,
+  });
+
+  public static readonly OCPP_START_SIGNED_DATA_ATTRIBUTE: OCPPAttribute = Object.freeze({
+    format: OCPPValueFormat.SIGNED_DATA,
+    context: OCPPReadingContext.TRANSACTION_BEGIN,
+  });
+
+  public static readonly OCPP_STOP_SIGNED_DATA_ATTRIBUTE: OCPPAttribute = Object.freeze({
+    format: OCPPValueFormat.SIGNED_DATA,
+    context: OCPPReadingContext.TRANSACTION_END,
   });
 
   public static readonly OCPP_VOLTAGE_ATTRIBUTE: OCPPAttribute = Object.freeze({

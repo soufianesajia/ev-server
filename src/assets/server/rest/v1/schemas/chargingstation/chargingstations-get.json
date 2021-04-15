@@ -28,10 +28,9 @@
       "sanitize": "mongo"
     },
     "ConnectorType": {
-      "type": "string",
-      "sanitize": "mongo"
+      "$ref": "chargingstation.json#/definitions/connector/properties/type"
     },
-    "ChargeBoxID": {
+    "ChargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "IncludeDeleted": {

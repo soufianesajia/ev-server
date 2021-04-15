@@ -10,6 +10,7 @@ import { ServerAction } from '../../types/Server';
 import SiteArea from '../../types/SiteArea';
 import { SmartChargingSetting } from '../../types/Setting';
 import Utils from '../../utils/Utils';
+import { Voltage } from '../../types/ChargingStation';
 
 const MODULE_NAME = 'SmartChargingIntegration';
 
@@ -24,6 +25,8 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
   }
 
   public async computeAndApplyChargingProfiles(siteArea: SiteArea, retry = false): Promise<ActionsResponse> {
+    // Helper to keep original site area limit
+    const originalSiteAreaMaximumPower = siteArea.maximumPower;
     const actionsResponse: ActionsResponse = {
       inSuccess: 0,
       inError: 0
@@ -31,7 +34,7 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
     // Call the charging plans
     const chargingProfiles: ChargingProfile[] = await this.buildChargingProfiles(siteArea, this.excludedChargingStations);
     if (!chargingProfiles) {
-      Logging.logInfo({
+      await Logging.logInfo({
         tenantID: this.tenantID,
         action: ServerAction.CHARGING_PROFILE_UPDATE,
         module: MODULE_NAME, method: 'computeAndApplyChargingProfiles',
@@ -53,7 +56,7 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
         }
         actionsResponse.inError++;
         // Log failed
-        Logging.logError({
+        await Logging.logError({
           tenantID: this.tenantID,
           source: chargingProfile.chargingStationID,
           action: ServerAction.CHARGING_PROFILE_UPDATE,
@@ -64,7 +67,7 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
       }
     }
     // Log
-    Logging.logActionsResponse(this.tenantID, ServerAction.CHECK_AND_APPLY_SMART_CHARGING,
+    await Logging.logActionsResponse(this.tenantID, ServerAction.CHECK_AND_APPLY_SMART_CHARGING,
       MODULE_NAME, 'computeAndApplyChargingProfiles', actionsResponse,
       '{{inSuccess}} charging plan(s) were successfully pushed',
       '{{inError}} charging plan(s) failed to be pushed',
@@ -72,6 +75,8 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
       'No charging plans have been pushed'
     );
     if (actionsResponse.inError > 0 && retry === false) {
+      // Reset Site Area Limit from last run
+      siteArea.maximumPower = originalSiteAreaMaximumPower;
       await this.computeAndApplyChargingProfiles(siteArea, retry = true);
     }
     return actionsResponse;
@@ -86,7 +91,7 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
         message: `Maximum Power is not set in Site Area '${siteArea.name}'`
       });
     }
-    if (siteArea.voltage !== 230 && siteArea.voltage !== 110) {
+    if (siteArea.voltage !== Voltage.VOLTAGE_230 && siteArea.voltage !== Voltage.VOLTAGE_110) {
       throw new BackendError({
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SMART_CHARGING,
@@ -122,7 +127,7 @@ export default abstract class SmartChargingIntegration<T extends SmartChargingSe
         return true;
       } catch (error) {
         // Log failed
-        Logging.logError({
+        await Logging.logError({
           tenantID: this.tenantID,
           source: chargingProfile.chargingStationID,
           action: ServerAction.CHARGING_PROFILE_UPDATE,

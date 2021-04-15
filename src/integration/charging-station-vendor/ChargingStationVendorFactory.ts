@@ -4,10 +4,14 @@ import AbbChargingStationVendorIntegration from './abb/AbbChargingStationVendorI
 import AtessChargingStationVendorIntegration from './atess/AtessChargingStationVendorIntegration';
 import CIRCONTROLChargingStationVendorIntegration from './circontrol/CIRCONTROLChargingStationVendorIntegration';
 import ChargingStationVendorIntegration from './ChargingStationVendorIntegration';
+import DBTCEVChargingStationVendorIntegration from './dbtcev/DBTCEVChargingStationVendorIntegration';
 import DefaultChargingStationVendorIntegration from './default/DefaultChargingStationVendorIntegration';
 import DeltaChargingStationVendorIntegration from './delta/DeltaChargingStationVendorIntegration';
 import EVBOXChargingStationVendorIntegration from './evbox/EVBOXChargingStationVendorIntegration';
+import EVMeterChargingStationVendorIntegration from './evmeter/EVMeterChargingStationVendorIntegration';
 import EbeeChargingStationVendorIntegration from './ebee/EbeeChargingStationVendorIntegration';
+import EnPlusChargingStationVendorIntegration from './enplus/EnPlusChargingStationVendorIntegration';
+import ExadysChargingStationVendorIntegration from './exadys/ExadysChargingStationVendorIntegration';
 import IESChargingStationVendorIntegration from './ies/IESChargingStationVendorIntegration';
 import IngeteamChargingStationVendorIntegration from './ingeteam/IngeteamChargingStationVendorIntegration';
 import InnogyChargingStationVendorIntegration from './innogy/InnogyChargingStationVendorIntegration';
@@ -25,11 +29,17 @@ export default class ChargingStationVendorFactory {
       case ChargerVendor.ABB:
         chargingStationVendorImpl = new AbbChargingStationVendorIntegration(chargingStation);
         break;
+      case ChargerVendor.DBTCEV:
+        chargingStationVendorImpl = new DBTCEVChargingStationVendorIntegration(chargingStation);
+        break;
       case ChargerVendor.SCHNEIDER:
         chargingStationVendorImpl = new SchneiderChargingStationVendorIntegration(chargingStation);
         break;
       case ChargerVendor.EVBOX:
         chargingStationVendorImpl = new EVBOXChargingStationVendorIntegration(chargingStation);
+        break;
+      case ChargerVendor.EVMETER:
+        chargingStationVendorImpl = new EVMeterChargingStationVendorIntegration(chargingStation);
         break;
       case ChargerVendor.INNOGY:
         chargingStationVendorImpl = new InnogyChargingStationVendorIntegration(chargingStation);
@@ -42,6 +52,12 @@ export default class ChargingStationVendorFactory {
         break;
       case ChargerVendor.WALLBOX_CHARGERS:
         chargingStationVendorImpl = new WallboxChargersChargingStationVendorIntegration(chargingStation);
+        break;
+      case ChargerVendor.ENPLUS:
+        chargingStationVendorImpl = new EnPlusChargingStationVendorIntegration(chargingStation);
+        break;
+      case ChargerVendor.EXADYS:
+        chargingStationVendorImpl = new ExadysChargingStationVendorIntegration(chargingStation);
         break;
       case ChargerVendor.EBEE:
       case ChargerVendor.BENDER:
