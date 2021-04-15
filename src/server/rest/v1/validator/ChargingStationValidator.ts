@@ -15,6 +15,7 @@ export default class ChargingStationValidator extends SchemaValidator {
   private chargingStationReset: Schema;
   private chargingStationOcppConfigurationGet: Schema;
   private chargingStationOcppConfigurationUpdate: Schema;
+  // Charging Station actions
   private chargingStationRemoteStart: Schema;
   private chargingStationRemoteStop: Schema;
   private chargingStationUnlockConnector: Schema;
@@ -22,7 +23,7 @@ export default class ChargingStationValidator extends SchemaValidator {
   private chargingStationGetDiagnostics: Schema;
   private chargingStationFirmwareUpdate: Schema;
   private chargingStationAvailabilityChange: Schema;
-  private chargingStationAction: Schema;
+
   private chargingStationQRCodeGenerate: Schema;
   private chargingStationQRCodeDownload: Schema;
   private chargingStationOcppParametersGet: Schema;
@@ -47,7 +48,6 @@ export default class ChargingStationValidator extends SchemaValidator {
     this.chargingStationGetDiagnostics = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-diagnostics.json`, 'utf8'));
     this.chargingStationFirmwareUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-update-firmware.json`, 'utf8'));
     this.chargingStationAvailabilityChange = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-change-availability.json`, 'utf8'));
-    this.chargingStationAction = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-action.json`, 'utf8'));
     this.chargingStationQRCodeGenerate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-qrcode-generate.json`, 'utf8'));
     this.chargingStationQRCodeDownload = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-qrcode-download.json`, 'utf8'));
     this.chargingStationOcppParametersGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-ocpp-parameters-get.json`, 'utf8'));
