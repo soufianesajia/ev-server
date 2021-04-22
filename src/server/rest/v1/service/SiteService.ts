@@ -404,10 +404,9 @@ export default class SiteService {
       Action.UPDATE, Entity.SITE, MODULE_NAME, 'handleUpdateSite');
     // Filter request
     const filteredRequest = SiteSecurity.filterSiteUpdateRequest(req.body);
-    UtilsService.assertIdIsProvided(action, filteredRequest.id, MODULE_NAME, 'handleUpdateSite', req.user);
     // Check data is valid
     UtilsService.checkIfSiteValid(filteredRequest, req);
-    // Check and Get Company
+    // Check Company
     await UtilsService.checkAndGetCompanyAuthorization(
       req.tenant, req.user, filteredRequest.companyID, Action.READ, action, {});
     // Check and Get Site
