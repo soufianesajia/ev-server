@@ -253,7 +253,6 @@ export default class SiteService {
       Action.READ, Entity.SITE, MODULE_NAME, 'handleGetSite');
     // Filter request
     const filteredRequest = SiteSecurity.filterSiteRequest(req.query);
-    UtilsService.assertIdIsProvided(action, filteredRequest.ID, MODULE_NAME, 'handleGetSite', req.user);
     // Check and Get Site
     const site = await UtilsService.checkAndGetSiteAuthorization(
       req.tenant, req.user, filteredRequest.ID, Action.READ, action, {
