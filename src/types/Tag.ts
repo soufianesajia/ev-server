@@ -6,6 +6,7 @@ import User from './User';
 export default interface Tag extends CreatedUpdatedProps {
   id: string;
   description?: string;
+  visualID?: string;
   issuer: boolean;
   active: boolean;
   userID?: string;
@@ -22,6 +23,9 @@ export interface ImportedTag {
   importedOn?: Date;
   status?: ImportStatus;
   errorDescription?: string;
+  name?: string;
+  firstName?: string;
+  email?: string;
 }
 
 export const TagRequiredImportProperties = [

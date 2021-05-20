@@ -15,6 +15,7 @@ import CSVError from 'csvtojson/v2/CSVError';
 import Constants from '../../../../utils/Constants';
 import { DataResult } from '../../../../types/DataResult';
 import EmspOCPIClient from '../../../../client/ocpi/EmspOCPIClient';
+import { ImportedUser } from '../../../../types/User';
 import JSONStream from 'JSONStream';
 import LockingHelper from '../../../../locking/LockingHelper';
 import LockingManager from '../../../../locking/LockingManager';
@@ -33,6 +34,7 @@ import TenantStorage from '../../../../storage/mongodb/TenantStorage';
 import TransactionStorage from '../../../../storage/mongodb/TransactionStorage';
 import UserStorage from '../../../../storage/mongodb/UserStorage';
 import UserToken from '../../../../types/UserToken';
+import UserValidator from '../validator/UserValidator';
 import Utils from '../../../../utils/Utils';
 import UtilsService from './UtilsService';
 import csvToJson from 'csvtojson/v2';
@@ -132,12 +134,24 @@ export default class TagService {
     // Check
     UtilsService.checkIfUserTagIsValid(filteredRequest, req);
     // Check Tag
-    const tag = await TagStorage.getTag(req.user.tenantID, filteredRequest.id.toUpperCase());
+    let tag = await TagStorage.getTag(req.user.tenantID, filteredRequest.id.toUpperCase());
     if (tag) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
         errorCode: HTTPError.TAG_ALREADY_EXIST_ERROR,
         message: `Tag with ID '${filteredRequest.id}' already exists`,
+        module: MODULE_NAME, method: 'handleCreateTag',
+        user: req.user,
+        action: action
+      });
+    }
+    // Check Tag
+    tag = await TagStorage.getTagByVisualID(req.user.tenantID, filteredRequest.visualID);
+    if (tag) {
+      throw new AppError({
+        source: Constants.CENTRAL_SERVER,
+        errorCode: HTTPError.TAG_VISUAL_ID_ALREADY_EXIST_ERROR,
+        message: `Tag with visual ID '${filteredRequest.id}' already exists`,
         module: MODULE_NAME, method: 'handleCreateTag',
         user: req.user,
         action: action
@@ -195,6 +209,7 @@ export default class TagService {
       createdOn: new Date(),
       userID: filteredRequest.userID,
       default: filteredRequest.default,
+      visualID: filteredRequest.visualID
     } as Tag;
     // Save
     await TagStorage.saveTag(req.user.tenantID, newTag);
@@ -430,7 +445,6 @@ export default class TagService {
             trim: true,
             delimiter: Constants.CSV_SEPARATOR,
             output: 'json',
-            quote: 'on',
           });
           void converter.subscribe(async (tag: ImportedTag) => {
             // Check connection
@@ -458,7 +472,7 @@ export default class TagService {
               result.inError++;
             }
             // Insert batched
-            if ((tagsToBeImported.length % Constants.IMPORT_BATCH_INSERT_SIZE) === 0) {
+            if (!Utils.isEmptyArray(tagsToBeImported) && (tagsToBeImported.length % Constants.IMPORT_BATCH_INSERT_SIZE) === 0) {
               await TagService.insertTags(req.user.tenantID, req.user, action, tagsToBeImported, result);
             }
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -699,21 +713,23 @@ export default class TagService {
     if (writeHeader) {
       headers = [
         'id',
+        'visual ID',
         'description',
         'firstName',
         'name',
-        'email'
+        'email',
       ].join(Constants.CSV_SEPARATOR);
     }
     // Content
     const rows = tags.map((tag) => {
       const row = [
         tag.id,
+        tag.visualID,
         tag.description,
         tag.user?.firstName,
         tag.user?.name,
         tag.user?.email
-      ].map((value) => typeof value === 'string' ? '"' + value.replace(/^"|"$/g, '') + '"' : value);
+      ].map((value) => Utils.escapeCsvValue(value));
       return row;
     }).join(Constants.CR_LF);
     return Utils.isNullOrUndefined(headers) ? Constants.CR_LF + rows : [headers, rows].join(Constants.CR_LF);
@@ -761,6 +777,9 @@ export default class TagService {
       const newImportedTag: ImportedTag = {
         id: importedTag.id.toUpperCase(),
         description: importedTag.description ? importedTag.description : `Badge ID '${importedTag.id}'`,
+        name: importedTag.name.toUpperCase(),
+        firstName: importedTag.firstName,
+        email: importedTag.email,
       };
       // Validate Tag data
       TagValidator.getInstance().validateImportedTagCreation(newImportedTag);
@@ -768,6 +787,20 @@ export default class TagService {
       newImportedTag.importedBy = importedTag.importedBy;
       newImportedTag.importedOn = importedTag.importedOn;
       newImportedTag.status = ImportStatus.READY;
+      try {
+        UserValidator.getInstance().validateImportedUserCreation(newImportedTag as ImportedUser);
+      } catch (error) {
+        newImportedTag.email = '';
+        newImportedTag.name = '';
+        newImportedTag.firstName = '';
+        await Logging.logWarning({
+          tenantID: req.user.tenantID,
+          module: MODULE_NAME, method: 'processTag',
+          action: action,
+          message: `User cannot be imported tag ${newImportedTag.id}`,
+          detailedMessages: { tag: newImportedTag, error: error.message, stack: error.stack }
+        });
+      }
       // Save it later on
       tagsToBeImported.push(newImportedTag);
       return true;
