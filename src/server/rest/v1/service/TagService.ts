@@ -272,6 +272,20 @@ export default class TagService {
     const tag = await TagStorage.getTag(req.user.tenantID, filteredRequest.id, { withNbrTransactions: true, withUser: true });
     UtilsService.assertObjectExists(action, tag, `Tag ID '${filteredRequest.id}' does not exist`,
       MODULE_NAME, 'handleUpdateTag', req.user);
+    if (tag.visualID !== filteredRequest.visualID) {
+      // Check visualID uniqueness
+      const tagVisualID = await TagStorage.getTagByVisualID(req.user.tenantID, filteredRequest.visualID);
+      if (tagVisualID) {
+        throw new AppError({
+          source: Constants.CENTRAL_SERVER,
+          errorCode: HTTPError.TAG_VISUAL_ID_ALREADY_EXIST_ERROR,
+          message: `Tag with visual ID '${filteredRequest.id}' already exists`,
+          module: MODULE_NAME, method: 'handleCreateTag',
+          user: req.user,
+          action: action
+        });
+      }
+    }
     // Only current organization Tag can be updated
     if (!tag.issuer) {
       throw new AppError({
