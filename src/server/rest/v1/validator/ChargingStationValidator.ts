@@ -1,4 +1,4 @@
-import { HttpChargingProfilesRequest, HttpChargingStationConnectorRequest, HttpChargingStationGetDiagnosticsRequest, HttpChargingStationGetFirmwareRequest, HttpChargingStationGetOcppConfigurationRequest, HttpChargingStationLimitPowerRequest, HttpChargingStationOcppParametersRequest, HttpChargingStationOcppRequest, HttpChargingStationParamsUpdateRequest, HttpChargingStationRemoteStartRequest, HttpChargingStationRemoteStopRequest, HttpChargingStationRequest, HttpChargingStationResetRequest, HttpChargingStationUnlockConnectorRequest, HttpChargingStationUpdateFirmwareRequest, HttpChargingStationUpdateOcppConfigurationRequest, HttpChargingStationsRequest, HttpDownloadQrCodeRequest, HttpTriggerSmartChargingRequest } from '../../../../types/requests/HttpChargingStationRequest';
+import { HttpChargingProfilesRequest, HttpChargingStationConnectorRequest, HttpChargingStationGetDiagnosticsRequest, HttpChargingStationGetFirmwareRequest, HttpChargingStationGetOcppConfigurationRequest, HttpChargingStationLimitPowerRequest, HttpChargingStationOcppParametersRequest, HttpChargingStationOcppRequest, HttpChargingStationParamsUpdateRequest, HttpChargingStationRemoteStartRequest, HttpChargingStationRemoteStopRequest, HttpChargingStationRequest, HttpChargingStationResetRequest, HttpChargingStationUnlockConnectorRequest, HttpChargingStationUpdateFirmwareRequest, HttpChargingStationUpdateOcppConfigurationRequest, HttpChargingStationsInErrorRequest, HttpChargingStationsRequest, HttpDownloadQrCodeRequest, HttpTriggerSmartChargingRequest } from '../../../../types/requests/HttpChargingStationRequest';
 
 import { ChargingProfile } from '../../../../types/ChargingProfile';
 import HttpByIDRequest from '../../../../types/requests/HttpByIDRequest';
@@ -14,17 +14,6 @@ export default class ChargingStationValidator extends SchemaValidator {
   private chargingStationGet: Schema;
   private chargingStationDelete: Schema;
   private chargingStationReset: Schema;
-  private chargingStationOcppConfigurationGet: Schema;
-  private chargingStationOcppConfigurationUpdate: Schema;
-  // Charging Station actions
-  private chargingStationRemoteStart: Schema;
-  private chargingStationRemoteStop: Schema;
-  private chargingStationUnlockConnector: Schema;
-  private chargingStationGetCompositeSchedule: Schema;
-  private chargingStationGetDiagnostics: Schema;
-  private chargingStationFirmwareUpdate: Schema;
-  private chargingStationAvailabilityChange: Schema;
-
   private chargingStationQRCodeGenerate: Schema;
   private chargingStationQRCodeDownload: Schema;
   private chargingStationOcppParametersGet: Schema;
@@ -38,6 +27,16 @@ export default class ChargingStationValidator extends SchemaValidator {
   private chargingProfilesGet: Schema;
   private chargingProfileDelete: Schema;
   private chargingProfileUpdate: Schema;
+  // Charging Station actions
+  private chargingStationOcppConfigurationGet: Schema;
+  private chargingStationOcppConfigurationUpdate: Schema;
+  private chargingStationRemoteStart: Schema;
+  private chargingStationRemoteStop: Schema;
+  private chargingStationUnlockConnector: Schema;
+  private chargingStationGetCompositeSchedule: Schema;
+  private chargingStationGetDiagnostics: Schema;
+  private chargingStationFirmwareUpdate: Schema;
+  private chargingStationAvailabilityChange: Schema;
 
   private constructor() {
     super('ChargingStationValidator');
@@ -45,15 +44,6 @@ export default class ChargingStationValidator extends SchemaValidator {
     this.chargingStationGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-get.json`, 'utf8'));
     this.chargingStationDelete = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-delete.json`, 'utf8'));
     this.chargingStationReset = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-reset.json`, 'utf8'));
-    this.chargingStationOcppConfigurationGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-ocpp-configuration.json`, 'utf8'));
-    this.chargingStationOcppConfigurationUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-update-ocpp-configuration.json`, 'utf8'));
-    this.chargingStationRemoteStart = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-remote-start.json`, 'utf8'));
-    this.chargingStationRemoteStop = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-remote-stop.json`, 'utf8'));
-    this.chargingStationUnlockConnector = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-unlock-connector.json`, 'utf8'));
-    this.chargingStationGetCompositeSchedule = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-composite-schedule.json`, 'utf8'));
-    this.chargingStationGetDiagnostics = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-diagnostics.json`, 'utf8'));
-    this.chargingStationFirmwareUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-update-firmware.json`, 'utf8'));
-    this.chargingStationAvailabilityChange = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-change-availability.json`, 'utf8'));
     this.chargingStationQRCodeGenerate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-qrcode-generate.json`, 'utf8'));
     this.chargingStationQRCodeDownload = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-qrcode-download.json`, 'utf8'));
     this.chargingStationOcppParametersGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-ocpp-parameters-get.json`, 'utf8'));
@@ -67,6 +57,16 @@ export default class ChargingStationValidator extends SchemaValidator {
     this.chargingProfilesGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingprofiles-get.json`, 'utf8'));
     this.chargingProfileDelete = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingprofile-delete.json`, 'utf8'));
     this.chargingProfileUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingprofile-update.json`, 'utf8'));
+    this.chargingStationOcppConfigurationGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-ocpp-configuration.json`, 'utf8'));
+    this.chargingStationOcppConfigurationUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-update-ocpp-configuration.json`, 'utf8'));
+    this.chargingStationRemoteStart = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-remote-start.json`, 'utf8'));
+    this.chargingStationRemoteStop = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-remote-stop.json`, 'utf8'));
+    this.chargingStationUnlockConnector = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-unlock-connector.json`, 'utf8'));
+    this.chargingStationGetCompositeSchedule = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-composite-schedule.json`, 'utf8'));
+    this.chargingStationGetDiagnostics = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-get-diagnostics.json`, 'utf8'));
+    this.chargingStationFirmwareUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-update-firmware.json`, 'utf8'));
+    this.chargingStationAvailabilityChange = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-change-availability.json`, 'utf8'));
+
   }
 
   public static getInstance(): ChargingStationValidator {
@@ -100,61 +100,61 @@ export default class ChargingStationValidator extends SchemaValidator {
     return data;
   }
 
-  public validateChargingStationResetReq(data: any): HttpChargingStationResetRequest {
+  public validateChargingStationResetReq(data: HttpChargingStationResetRequest): HttpChargingStationResetRequest {
     // Validate schema
     this.validate(this.chargingStationReset, data);
     return data;
   }
 
-  public validateChargingStationGetOcppConfigurationReq(data: any): HttpChargingStationGetOcppConfigurationRequest {
+  public validateChargingStationGetOcppConfigurationReq(data: HttpChargingStationGetOcppConfigurationRequest): HttpChargingStationGetOcppConfigurationRequest {
     // Validate schema
     this.validate(this.chargingStationOcppConfigurationGet, data);
     return data;
   }
 
-  public validateChargingStationUpdateOcppConfigurationReq(data: any): HttpChargingStationUpdateOcppConfigurationRequest {
+  public validateChargingStationUpdateOcppConfigurationReq(data: HttpChargingStationUpdateOcppConfigurationRequest): HttpChargingStationUpdateOcppConfigurationRequest {
     // Validate schema
     this.validate(this.chargingStationOcppConfigurationUpdate, data);
     return data;
   }
 
-  public validateChargingStationRemoteStartReq(data: any): HttpChargingStationRemoteStartRequest {
+  public validateChargingStationRemoteStartReq(data: HttpChargingStationRemoteStartRequest): HttpChargingStationRemoteStartRequest {
     // Validate schema
     this.validate(this.chargingStationRemoteStart, data);
     return data;
   }
 
-  public validateChargingStationRemoteStopReq(data: any): HttpChargingStationRemoteStopRequest {
+  public validateChargingStationRemoteStopReq(data: HttpChargingStationRemoteStopRequest): HttpChargingStationRemoteStopRequest {
     // Validate schema
     this.validate(this.chargingStationRemoteStop, data);
     return data;
   }
 
-  public validateChargingStationUnlockConnectorReq(data: any): HttpChargingStationUnlockConnectorRequest {
+  public validateChargingStationUnlockConnectorReq(data: HttpChargingStationUnlockConnectorRequest): HttpChargingStationUnlockConnectorRequest {
     // Validate schema
     this.validate(this.chargingStationUnlockConnector, data);
     return data;
   }
 
-  public validateChargingStationGetCompositeScheduleReq(data: any): HttpChargingStationUnlockConnectorRequest {
+  public validateChargingStationGetCompositeScheduleReq(data: HttpChargingStationUnlockConnectorRequest): HttpChargingStationUnlockConnectorRequest {
     // Validate schema
     this.validate(this.chargingStationGetCompositeSchedule, data);
     return data;
   }
 
-  public validateChargingStationGetDiagnosticsReq(data: any): HttpChargingStationGetDiagnosticsRequest {
+  public validateChargingStationGetDiagnosticsReq(data: HttpChargingStationGetDiagnosticsRequest): HttpChargingStationGetDiagnosticsRequest {
     // Validate schema
     this.validate(this.chargingStationGetDiagnostics, data);
     return data;
   }
 
-  public validateChargingStationUpdateFirmwareReq(data: any): HttpChargingStationUpdateFirmwareRequest {
+  public validateChargingStationUpdateFirmwareReq(data: HttpChargingStationUpdateFirmwareRequest): HttpChargingStationUpdateFirmwareRequest {
     // Validate schema
     this.validate(this.chargingStationFirmwareUpdate, data);
     return data;
   }
 
-  public validateChargingStationChangeAvailabilityReq(data: any): HttpChargingStationUpdateFirmwareRequest {
+  public validateChargingStationChangeAvailabilityReq(data: HttpChargingStationUpdateFirmwareRequest): HttpChargingStationUpdateFirmwareRequest {
     // Validate schema
     this.validate(this.chargingStationAvailabilityChange, data);
     return data;
