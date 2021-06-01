@@ -138,7 +138,6 @@ export interface HttpChargingStationUpdateOcppConfigurationRequest extends HttpC
 
 
 export interface HttpChargingStationRemoteStartRequest extends HttpChargingStationCommandRequest {
-  cardID: string;
   args: {
     tagID: string;
     connectorId: number;
