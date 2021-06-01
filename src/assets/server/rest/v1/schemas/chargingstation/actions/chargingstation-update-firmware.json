@@ -27,7 +27,8 @@
         }
       },
       "required": [
-        "location"
+        "location",
+        "retrieveDate"
       ]
     }
   },

@@ -10,11 +10,13 @@
       "properties": {
         "key": {
           "type": "string",
-          "sanitize": "mongo"
+          "sanitize": "mongo",
+          "maxLength": 50
         },
         "value": {
           "type": "string",
-          "sanitize": "mongo"
+          "sanitize": "mongo",
+          "maxLength": 500
         }
       },
       "required": [
