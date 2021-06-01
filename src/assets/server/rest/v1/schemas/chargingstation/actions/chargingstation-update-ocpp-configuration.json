@@ -2,7 +2,7 @@
   "title": "Update Charging Station OCPP Configuration",
   "type": "object",
   "properties": {
-    "chargeBoxID": {
+    "chargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "args": {
@@ -16,10 +16,14 @@
           "type": "string",
           "sanitize": "mongo"
         }
-      }
+      },
+      "required": [
+        "key",
+        "value"
+      ]
     }
   },
   "required": [
-    "chargeBoxID", "args.key", "args.value"
+    "chargingStationID"
   ]
 }

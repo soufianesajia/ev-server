@@ -2,7 +2,7 @@
   "title": "Get Charging Station diagnostics",
   "type": "object",
   "properties": {
-    "chargeBoxID": {
+    "chargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "args": {
@@ -30,10 +30,13 @@
           "format": "date-time",
           "sanitize": "mongo"
         }
-      }
+      },
+      "required": [
+        "location"
+      ]
     }
   },
   "required": [
-    "chargeBoxID", "args.location"
+    "chargingStationID"
   ]
 }

@@ -2,22 +2,25 @@
   "title": "Remote start a transaction for Charging Station",
   "type": "object",
   "properties": {
-    "chargeBoxID": {
+    "chargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "args": {
       "type": "object",
       "properties": {
         "connectorId": {
-          "$ref": "chargingstation.json#/definitions/connectorID"
+          "$ref": "chargingstation.json#/definitions/connector/properties/connectorId"
         },
         "tagID": {
           "$ref": "tag.json#/definitions/id"
         }
-      }
+      },
+      "required": [
+        "tagID"
+      ]
     }
   },
   "required": [
-    "chargeBoxID", "tagID"
+    "chargingStationID"
   ]
 }

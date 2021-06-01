@@ -2,7 +2,7 @@
   "title": "Update Charging Station firmware",
   "type": "object",
   "properties": {
-    "chargeBoxID": {
+    "chargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "args": {
@@ -13,10 +13,13 @@
           "sanitize": "mongo",
           "enum": ["Soft", "Hard"]
         }
-      }
+      },
+      "required": [
+        "type"
+      ]
     }
   },
   "required": [
-    "chargeBoxID", "args.type"
+    "chargingStationID"
   ]
 }

@@ -2,7 +2,7 @@
   "title": "Get Charging Station OCPP Configuration",
   "type": "object",
   "properties": {
-    "chargeBoxID": {
+    "chargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "args": {
@@ -20,6 +20,6 @@
     }
   },
   "required": [
-    "chargeBoxID"
+    "chargingStationID"
   ]
 }

@@ -2,14 +2,14 @@
   "title": "Get Charging Station composite schedule",
   "type": "object",
   "properties": {
-    "chargeBoxID": {
+    "chargingStationID": {
       "$ref": "chargingstation.json#/definitions/id"
     },
     "args": {
       "type": "object",
       "properties": {
         "connectorId": {
-          "$ref": "chargingstation.json#/definitions/connectorID"
+          "$ref": "chargingstation.json#/definitions/connector/properties/connectorId"
         },
         "duration": {
           "type": "number",
@@ -18,12 +18,19 @@
         "chargingRateUnit": {
           "type": "string",
           "sanitize": "mongo",
-          "enum": ["A", "W"]
+          "enum": [
+            "A",
+            "W"
+          ]
         }
-      }
+      },
+      "required": [
+        "connectorId",
+        "duration"
+      ]
     }
   },
   "required": [
-    "chargeBoxID", "args.connectorId", "duration"
+    "chargingStationID"
   ]
 }
