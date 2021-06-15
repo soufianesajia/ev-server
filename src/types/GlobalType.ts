@@ -33,6 +33,7 @@ export interface ActionsResponse {
 export enum ImportStatus {
   READY = 'R',
   ERROR = 'E',
+  ACTIVE = 'A'
 }
 
 interface TSGlobal extends Global {
