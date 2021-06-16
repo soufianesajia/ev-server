@@ -306,7 +306,9 @@ export default class UserStorage {
       status: importedUserToSave.status,
       errorDescription: importedUserToSave.errorDescription,
       importedOn: Utils.convertToDate(importedUserToSave.importedOn),
-      importedBy: Utils.convertToObjectID(importedUserToSave.importedBy)
+      importedBy: Utils.convertToObjectID(importedUserToSave.importedBy),
+      tags: importedUserToSave.tagIDs,
+      sites: importedUserToSave.siteIDs
     }));
     // Insert all at once
     const result = await global.database.getCollection<any>(tenantID, 'importedusers').insertMany(
@@ -717,7 +719,15 @@ export default class UserStorage {
     aggregation.push({
       $limit: dbParams.limit
     });
-    // Change ID
+    // Add sites where user is rattached
+    DatabaseUtils.pushSiteUserLookupInAggregation({
+      tenantID, aggregation: aggregation, localField: '_id', foreignField: 'userID', asField: 'sites'
+    });
+    // Add user tags
+    DatabaseUtils.pushTagLookupInAggregation({
+      tenantID, aggregation: aggregation, localField: '_id', foreignField: 'userID', asField: 'tags'
+    });
+    // Handle the ID
     DatabaseUtils.pushRenameDatabaseID(aggregation);
     // Add Created By / Last Changed By
     DatabaseUtils.pushCreatedLastChangedInAggregation(tenantID, aggregation);

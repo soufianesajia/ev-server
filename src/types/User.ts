@@ -3,6 +3,7 @@ import { AuthorizationActions } from './Authorization';
 import { BillingUserData } from './Billing';
 import CreatedUpdatedProps from './CreatedUpdatedProps';
 import { ImportStatus } from './GlobalType';
+import Tag from './Tag';
 import UserNotifications from './UserNotifications';
 
 export default interface User extends CreatedUpdatedProps, AuthorizationActions {
@@ -38,6 +39,9 @@ export default interface User extends CreatedUpdatedProps, AuthorizationActions 
   mobileLastChangedOn: Date;
   lastSelectedCarID?: string;
   authorizationID?: string;
+  tags?: Tag[];
+  visualIDs?: string[];
+  sites?: UserSite[];
 }
 
 export interface UserSite {
@@ -66,6 +70,9 @@ export interface ImportedUser {
   status?: ImportStatus
   errorDescription?: string;
   autoActivateAtImport?: boolean;
+  tagIDs?: string;
+  siteIDs?: string;
+  // visualIDs?: string;
 }
 
 export enum UserStatus {

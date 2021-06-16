@@ -78,6 +78,10 @@ export default class UserSecurity {
     if (Utils.objectHasProperty(request, 'NotAssignedToCarID')) {
       filteredRequest.NotAssignedToCarID = sanitize(request.NotAssignedToCarID);
     }
+    // TODO: a dégager
+    if (Utils.objectHasProperty(request, 'WithSites')) {
+      filteredRequest.WithSites = UtilsSecurity.filterBoolean(request.WithSites);
+    }
     UtilsSecurity.filterSkipAndLimit(request, filteredRequest);
     UtilsSecurity.filterSort(request, filteredRequest);
     UtilsSecurity.filterProject(request, filteredRequest);

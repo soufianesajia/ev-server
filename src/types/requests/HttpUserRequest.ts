@@ -28,9 +28,11 @@ export interface HttpUserAssignSitesRequest extends HttpDatabaseProjectRequest {
   siteIDs: string[];
 }
 
+// TODO: clearer ça
 export interface HttpUsersRequest extends HttpDatabaseRequest {
   Issuer: boolean;
   WithTag?: boolean;
+  WithSites?: boolean;
   Search: string;
   SiteID: string;
   UserID: string;
@@ -42,6 +44,7 @@ export interface HttpUsersRequest extends HttpDatabaseRequest {
   ExcludeUserIDs: string;
   IncludeCarUserIDs: string;
   NotAssignedToCarID: string;
+  // UserSites: string;
 }
 
 export interface HttpUserSitesRequest extends HttpDatabaseRequest {

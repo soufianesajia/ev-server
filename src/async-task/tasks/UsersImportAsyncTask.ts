@@ -8,12 +8,21 @@ import DbParams from '../../types/database/DbParams';
 import LockingHelper from '../../locking/LockingHelper';
 import LockingManager from '../../locking/LockingManager';
 import Logging from '../../utils/Logging';
+import { ObjectID } from 'mongodb';
 import { ServerAction } from '../../types/Server';
+import Tag from '../../types/Tag';
+import TagStorage from '../../storage/mongodb/TagStorage';
+import Tenant from '../../types/Tenant';
 import TenantStorage from '../../storage/mongodb/TenantStorage';
 import UserStorage from '../../storage/mongodb/UserStorage';
 import Utils from '../../utils/Utils';
 
 const MODULE_NAME = 'UsersImportAsyncTask';
+
+const result: ActionsResponse = {
+  inError: 0,
+  inSuccess: 0,
+};
 
 export default class UsersImportAsyncTask extends AbstractAsyncTask {
   protected async executeAsyncTask(): Promise<void> {
@@ -23,10 +32,6 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
       try {
         const dbParams: DbParams = { limit: Constants.IMPORT_PAGE_SIZE, skip: 0 };
         let importedUsers: DataResult<ImportedUser>;
-        const result: ActionsResponse = {
-          inError: 0,
-          inSuccess: 0,
-        };
         const startTime = new Date().getTime();
         // Get total number of Users to import
         const totalUsersToImport = await UserStorage.getImportedUsersCount(tenant.id);
@@ -43,7 +48,7 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
           importedUsers = await UserStorage.getImportedUsers(tenant.id, { status: ImportStatus.READY }, dbParams);
           for (const importedUser of importedUsers.result) {
             try {
-            // Existing Users
+              // Existing Users
               const foundUser = await UserStorage.getUserByEmail(tenant.id, importedUser.email);
               if (foundUser) {
                 // Check tag is already in use
@@ -75,7 +80,12 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
               // Role need to be set separately
               await UserStorage.saveUserRole(tenant.id, newUser.id, UserRole.BASIC);
               // Status need to be set separately
-              await UserStorage.saveUserStatus(tenant.id, newUser.id, UserStatus.PENDING);
+              await UserStorage.saveUserStatus(tenant.id, newUser.id, importedUser.autoActivateAtImport ? UserStatus.ACTIVE : UserStatus.PENDING);
+              // Save tag if any and assign it to user
+              // if (importedUser.tagIDs && importedUser.visualIDs) {
+              if (importedUser.tagIDs) {
+                await this.handleUserTagImport(tenant, importedUser, newUser);
+              }
               // Remove the imported User
               await UserStorage.deleteImportedUser(tenant.id, importedUser.id);
               result.inSuccess++;
@@ -120,6 +130,64 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
       } finally {
         // Release the lock
         await LockingManager.release(importUsersLock);
+      }
+    }
+  }
+
+  private async handleUserTagImport(tenant: Tenant, importedUser: ImportedUser, newUser: User) {
+    for (const tag of importedUser.tagIDs.split('|')) {
+      try {
+        let tagToSave: Tag;
+        // Existing tags
+        const foundTag = await TagStorage.getTag(tenant.id, tag, { withNbrTransactions: true });
+        if (foundTag) {
+          // Check tag is already in use
+          if (!foundTag.issuer) {
+            throw new Error('Tag is not local to the organization');
+          }
+          if (foundTag.userID) {
+            throw new Error('Tag is already assigned to an user');
+          }
+          if (foundTag.active) {
+            throw new Error('Tag is already active');
+          }
+          if (foundTag.transactionsCount > 0) {
+            throw new Error(`Tag is already used in ${foundTag.transactionsCount} transaction(s)`);
+          }
+          if (foundTag.id !== tag) {
+            throw new Error('Tag VisualID is already assigned to another tag');
+          }
+          tagToSave = foundTag;
+        } else {
+          // New Tag
+          tagToSave = {
+            id: tag,
+            // TODO: add the visualID coming from csv
+            visualID: new ObjectID().toString(),
+            issuer: true,
+            active: false,
+            createdBy: { id: importedUser.importedBy },
+            createdOn: importedUser.importedOn,
+          };
+        }
+        tagToSave.userID = newUser.id;
+        // Save the new Tag
+        await TagStorage.saveTag(tenant.id, tagToSave);
+      } catch (error) {
+        // Update the imported Tag
+        importedUser.status = ImportStatus.ERROR;
+        importedUser.errorDescription = error.message;
+        result.inError++;
+        // Update it
+        await UserStorage.saveImportedUser(tenant.id, importedUser);
+        // Log
+        await Logging.logError({
+          tenantID: tenant.id,
+          action: ServerAction.TAGS_IMPORT,
+          module: MODULE_NAME, method: 'processTenant',
+          message: `Error when importing Tag ID '${importedUser.id}': ${error.message}`,
+          detailedMessages: { tag: importedUser, error: error.message, stack: error.stack }
+        });
       }
     }
   }

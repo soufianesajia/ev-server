@@ -646,7 +646,9 @@ export default class UserService {
 
   public static async handleExportUsers(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Export with tags
+    // TODO: virer ces deux là car ce n'est pas un flag mais c'est à intégrer direct au call
     req.query['WithTag'] = 'true';
+    req.query['WithSites'] = 'true';
     await UtilsService.exportToCSV(req, res, 'exported-users.csv',
       UserService.getUsers.bind(this),
       UserService.convertToCSV.bind(this));
@@ -1123,7 +1125,7 @@ export default class UserService {
     let headers = null;
     // Header
     if (writeHeader) {
-      const headerArray = [
+      headers = [
         'id',
         'name',
         'firstName',
@@ -1134,12 +1136,21 @@ export default class UserService {
         'eulaAcceptedOn',
         'createdOn',
         'changedOn',
-        'changedBy'
-      ];
-      headers = headerArray.join(Constants.CSV_SEPARATOR);
+        'changedBy',
+        'tagIDs',
+        'siteIDs'
+      ].join(Constants.CSV_SEPARATOR);
     }
-    // Conten t
+    // Content
     const rows = users.map((user) => {
+      const tagList = [];
+      for (const tag of user.tags) {
+        tagList.push(tag.id);
+      }
+      const siteList = [];
+      for (const site of user.sites) {
+        siteList.push(site.siteID);
+      }
       const row = [
         user.id,
         user.name,
@@ -1151,7 +1162,9 @@ export default class UserService {
         moment(user.eulaAcceptedOn).format('YYYY-MM-DD'),
         moment(user.createdOn).format('YYYY-MM-DD'),
         moment(user.lastChangedOn).format('YYYY-MM-DD'),
-        (user.lastChangedBy ? Utils.buildUserFullName(user.lastChangedBy as User, false) : '')
+        (user.lastChangedBy ? Utils.buildUserFullName(user.lastChangedBy as User, false) : ''),
+        tagList.join('|').toString(),
+        siteList.join('|').toString()
       ].map((value) => Utils.escapeCsvValue(value));
       return row;
     }).join(Constants.CR_LF);
@@ -1185,6 +1198,9 @@ export default class UserService {
     if (!authorizationUsersFilters.authorized) {
       return Constants.DB_EMPTY_DATA_RESULT;
     }
+    if (authorizationUsersFilters.authorized) {
+      authorizationUsersFilters.projectFields.push('tags.id', 'tags.visualID', 'sites');
+    }
     // Get users
     const users = await UserStorage.getUsers(req.user.tenantID,
       {
@@ -1216,19 +1232,25 @@ export default class UserService {
   }
 
   private static async processUser(action: ServerAction, req: Request, importedUser: ImportedUser, usersToBeImported: ImportedUser[]): Promise<boolean> {
+    const userTags = [];
+    // for (const tag of importedUser.) {
+
+    // }
     try {
       const newImportedUser: ImportedUser = {
         name: importedUser.name.toUpperCase(),
         firstName: importedUser.firstName,
         email: importedUser.email,
-        autoActivateAtImport: importedUser.autoActivateAtImport
+        // tagIDs: importedUser.tagIDs,
+        // visualIDs: importedUser.visualIDs
+        tagIDs: importedUser.tagIDs
       };
       // Validate User data
       UserValidator.getInstance().validateImportedUserCreation(newImportedUser);
       // Set properties
       newImportedUser.importedBy = importedUser.importedBy;
       newImportedUser.importedOn = importedUser.importedOn;
-      newImportedUser.status = importedUser.autoActivateAtImport ? ImportStatus.ACTIVE : ImportStatus.READY;
+      newImportedUser.status = ImportStatus.READY;
       // Save it later on
       usersToBeImported.push(newImportedUser);
       return true;
