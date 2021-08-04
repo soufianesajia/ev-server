@@ -44,7 +44,7 @@ export default class TagsImportAsyncTask extends AbstractAsyncTask {
         const totalTagsToImport = await TagStorage.getImportedTagsCount(tenant);
         if (totalTagsToImport > 0) {
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.TAGS_IMPORT,
             module: MODULE_NAME, method: 'processTenant',
             message: `${totalTagsToImport} Tag(s) are going to be imported...`
@@ -67,7 +67,7 @@ export default class TagsImportAsyncTask extends AbstractAsyncTask {
               result.inError++;
               await TagStorage.saveImportedTag(tenant, importedTag);
               await Logging.logError({
-                tenantID: tenant.id,
+                tenant,
                 action: ServerAction.TAGS_IMPORT,
                 module: MODULE_NAME, method: 'processTenant',
                 message: `Cannot import Tag ID '${importedTag.id}': ${error.message}`,
@@ -78,7 +78,7 @@ export default class TagsImportAsyncTask extends AbstractAsyncTask {
           if (!Utils.isEmptyArray(importedTags.result) && (result.inError + result.inSuccess) > 0) {
             const intermediateDurationSecs = Math.round((new Date().getTime() - startTime) / 1000);
             await Logging.logDebug({
-              tenantID: tenant.id,
+              tenant,
               action: ServerAction.TAGS_IMPORT,
               module: MODULE_NAME, method: 'processTenant',
               message: `${result.inError + result.inSuccess}/${totalTagsToImport} Tag(s) have been processed in ${intermediateDurationSecs}s...`
@@ -87,7 +87,7 @@ export default class TagsImportAsyncTask extends AbstractAsyncTask {
         } while (!Utils.isEmptyArray(importedTags?.result));
         // Log final results
         const executionDurationSecs = Math.round((new Date().getTime() - startTime) / 1000);
-        await Logging.logActionsResponse(tenant.id, ServerAction.TAGS_IMPORT, MODULE_NAME, 'processTenant', result,
+        await Logging.logActionsResponse(tenant, ServerAction.TAGS_IMPORT, MODULE_NAME, 'processTenant', result,
           `{{inSuccess}} Tag(s) have been imported successfully in ${executionDurationSecs}s in Tenant ${Utils.buildTenantName(tenant)}`,
           `{{inError}} Tag(s) failed to be imported in ${executionDurationSecs}s in Tenant ${Utils.buildTenantName(tenant)}`,
           `{{inSuccess}} Tag(s) have been imported successfully but {{inError}} failed in ${executionDurationSecs}s in Tenant ${Utils.buildTenantName(tenant)}`,
@@ -95,7 +95,7 @@ export default class TagsImportAsyncTask extends AbstractAsyncTask {
         );
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.TAGS_IMPORT, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.TAGS_IMPORT, error);
       } finally {
         // Release the lock
         await LockingManager.release(importTagsLock);

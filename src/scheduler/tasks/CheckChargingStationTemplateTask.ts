@@ -29,7 +29,7 @@ export default class CheckChargingStationTemplateTask extends SchedulerTask {
         await this.applyTemplateToChargingStations(tenant);
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE, error);
       } finally {
         // Release the lock
         await LockingManager.release(checkChargingStationTemplateLock);
@@ -42,7 +42,7 @@ export default class CheckChargingStationTemplateTask extends SchedulerTask {
     // Bypass perf tenant
     if (tenant.subdomain === 'testperf') {
       await Logging.logWarning({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'applyTemplateToChargingStations',
         message: `Bypassed tenant ${Utils.buildTenantName(tenant)})`
@@ -62,7 +62,7 @@ export default class CheckChargingStationTemplateTask extends SchedulerTask {
         }
       } catch (error) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'applyTemplateToChargingStations',
@@ -73,7 +73,7 @@ export default class CheckChargingStationTemplateTask extends SchedulerTask {
     }
     if (updated > 0) {
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'applyTemplateToChargingStations',
         message: `${updated} Charging Stations have been processed with Template in Tenant ${Utils.buildTenantName(tenant)})`
@@ -85,7 +85,7 @@ export default class CheckChargingStationTemplateTask extends SchedulerTask {
     // Update current Chargers
     ChargingStationStorage.updateChargingStationTemplatesFromFile().catch(
       (error) => {
-        void Logging.logActionExceptionMessage(Constants.DEFAULT_TENANT, ServerAction.UPDATE_CHARGING_STATION_TEMPLATES, error);
+        void Logging.logActionExceptionMessage(Constants.DEFAULT_TENANT_OBJECT, ServerAction.UPDATE_CHARGING_STATION_TEMPLATES, error);
       });
   }
 }

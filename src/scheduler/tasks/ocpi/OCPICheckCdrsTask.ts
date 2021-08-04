@@ -30,7 +30,7 @@ export default class OCPICheckCdrsTask extends SchedulerTask {
       }
     } catch (error) {
       // Log error
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_CHECK_CDRS, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_CHECK_CDRS, error);
     }
   }
 
@@ -42,7 +42,7 @@ export default class OCPICheckCdrsTask extends SchedulerTask {
         // Check if OCPI endpoint is registered
         if (ocpiEndpoint.status !== OCPIRegistrationStatus.REGISTERED) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             action: ServerAction.OCPI_CHECK_CDRS,
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is not registered. Skipping the OCPI endpoint.`
@@ -51,7 +51,7 @@ export default class OCPICheckCdrsTask extends SchedulerTask {
         }
         if (!ocpiEndpoint.backgroundPatchJob) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             action: ServerAction.OCPI_CHECK_CDRS,
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is inactive.`
@@ -59,7 +59,7 @@ export default class OCPICheckCdrsTask extends SchedulerTask {
           return;
         }
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           action: ServerAction.OCPI_CHECK_CDRS,
           message: `The check of CDRs for endpoint '${ocpiEndpoint.name}' is being processed...`
@@ -68,7 +68,7 @@ export default class OCPICheckCdrsTask extends SchedulerTask {
         const ocpiClient = await OCPIClientFactory.getCpoOcpiClient(tenant, ocpiEndpoint);
         const result = await ocpiClient.checkCdrs();
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           action: ServerAction.OCPI_CHECK_CDRS,
           message: `The check of CDRs for endpoint '${ocpiEndpoint.name}' is completed`,
@@ -76,7 +76,7 @@ export default class OCPICheckCdrsTask extends SchedulerTask {
         });
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_CHECK_CDRS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_CHECK_CDRS, error);
       } finally {
         // Release the lock
         await LockingManager.release(ocpiLock);

@@ -27,7 +27,7 @@ export default class BillingFactory {
         return billingIntegrationImpl;
       }
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant: tenant,
         action: ServerAction.BILLING,
         module: MODULE_NAME, method: 'getBillingImpl',
         message: 'Billing settings are not configured'

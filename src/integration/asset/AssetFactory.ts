@@ -47,7 +47,7 @@ export default class AssetFactory {
         }
       }
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant: tenant,
         action: ServerAction.ASSET,
         module: MODULE_NAME, method: 'getAssetImpl',
         message: 'Asset settings are not configured'

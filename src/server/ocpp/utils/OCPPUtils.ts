@@ -105,7 +105,7 @@ export default class OCPPUtils {
         throw error;
       } else {
         await Logging.logWarning({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.ROAMING,
           user: transaction.userID,
@@ -307,7 +307,7 @@ export default class OCPPUtils {
           } catch (error) {
             const message = `Billing - startTransaction failed - transaction ID '${transaction.id}'`;
             await Logging.logError({
-              tenantID: tenant.id,
+              tenant,
               source: transaction.chargeBoxID,
               user: transaction.userID,
               action: ServerAction.BILLING_TRANSACTION,
@@ -336,7 +336,7 @@ export default class OCPPUtils {
           } catch (error) {
             const message = `Billing - updateTransaction failed - transaction ID '${transaction.id}'`;
             await Logging.logError({
-              tenantID: tenant.id,
+              tenant,
               source: transaction.chargeBoxID,
               user: transaction.userID,
               action: ServerAction.BILLING_TRANSACTION,
@@ -358,7 +358,7 @@ export default class OCPPUtils {
           } catch (error) {
             const message = `Billing - stopTransaction failed - transaction ID '${transaction.id}'`;
             await Logging.logError({
-              tenantID: tenant.id,
+              tenant,
               source: transaction.chargeBoxID,
               user: transaction.userID,
               action: ServerAction.BILLING_TRANSACTION,
@@ -841,7 +841,7 @@ export default class OCPPUtils {
         if (transaction.lastConsumption?.timestamp && meterValue.timestamp &&
             moment(meterValue?.timestamp).isBefore(moment(transaction?.lastConsumption?.timestamp))) {
           await Logging.logError({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             module: MODULE_NAME, method: 'createConsumptionsFromMeterValues',
             action: ServerAction.METER_VALUES,
@@ -1136,7 +1136,7 @@ export default class OCPPUtils {
           (connector) => connector.connectorId === connectorID);
         if (!templateConnector) {
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
             module: MODULE_NAME, method: 'enrichChargingStationConnectorWithTemplate',
@@ -1193,7 +1193,7 @@ export default class OCPPUtils {
         }
       }
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'enrichChargingStationConnectorWithTemplate',
@@ -1203,7 +1203,7 @@ export default class OCPPUtils {
       return true;
     }
     await Logging.logWarning({
-      tenantID: tenant.id,
+      tenant,
       source: chargingStation.id,
       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
       module: MODULE_NAME, method: 'enrichChargingStationConnectorWithTemplate',
@@ -1252,7 +1252,7 @@ export default class OCPPUtils {
       // Save
       await ChargingStationStorage.saveChargingStation(tenant, chargingStation);
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'applyTemplateToChargingStation',
@@ -1269,7 +1269,7 @@ export default class OCPPUtils {
 
   public static async applyTemplateOcppParametersToChargingStation(tenant: Tenant, chargingStation: ChargingStation): Promise<OCPPChangeConfigurationCommandResult> {
     await Logging.logDebug({
-      tenantID: tenant.id,
+      tenant,
       source: chargingStation.id,
       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
       module: MODULE_NAME, method: 'applyTemplateOcppParametersToChargingStation',
@@ -1285,7 +1285,7 @@ export default class OCPPUtils {
       `Time out error (${Constants.DELAY_CHANGE_CONFIGURATION_EXECUTION_MILLIS} ms) in updating OCPP Parameters`);
     if (result.status !== OCPPConfigurationStatus.ACCEPTED) {
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'applyTemplateOcppParametersToChargingStation',
@@ -1314,7 +1314,7 @@ export default class OCPPUtils {
           actionsResponse.inSuccess++;
         } catch (error) {
           await Logging.logError({
-            tenantID: tenant.id,
+            tenant,
             source: chargingProfile.chargingStationID,
             action: ServerAction.CHARGING_PROFILE_DELETE,
             module: MODULE_NAME, method: 'clearAndDeleteChargingProfilesForSiteArea',
@@ -1359,7 +1359,7 @@ export default class OCPPUtils {
       await chargingStationVendor.clearChargingProfile(tenant, chargingStation, chargingProfile);
     } catch (error) {
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.CHARGING_PROFILE_DELETE,
         message: 'Error occurred while clearing the Charging Profile',
@@ -1371,7 +1371,7 @@ export default class OCPPUtils {
     // Delete from database
     await ChargingStationStorage.deleteChargingProfile(tenant, chargingProfile.id);
     await Logging.logInfo({
-      tenantID: tenant.id,
+      tenant,
       source: chargingStation.id,
       action: ServerAction.CHARGING_PROFILE_DELETE,
       module: MODULE_NAME, method: 'clearAndDeleteChargingProfile',
@@ -1455,7 +1455,7 @@ export default class OCPPUtils {
     // Save
     const chargingProfileID = await ChargingStationStorage.saveChargingProfile(tenant, chargingProfile);
     await Logging.logInfo({
-      tenantID: tenant.id,
+      tenant,
       source: chargingStation.id,
       action: ServerAction.CHARGING_PROFILE_UPDATE,
       module: MODULE_NAME, method: 'setAndSaveChargingProfile',
@@ -1585,7 +1585,7 @@ export default class OCPPUtils {
       // Get the OCPP Configuration
       const ocppConfiguration = await OCPPUtils.requestChargingStationOcppParameters(tenant, chargingStation, {});
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
         module: MODULE_NAME, method: 'requestAndSaveChargingStationOcppParameters',
@@ -1624,7 +1624,7 @@ export default class OCPPUtils {
       await ChargingStationStorage.saveOcppParameters(tenant, chargingStationOcppParameters);
       // Ok
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
         module: MODULE_NAME, method: 'requestAndSaveChargingStationOcppParameters',
@@ -1632,7 +1632,7 @@ export default class OCPPUtils {
       });
       return { status: OCPPConfigurationStatus.ACCEPTED };
     } catch (error) {
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION, error);
       return { status: OCPPConfigurationStatus.REJECTED };
     }
   }
@@ -1653,7 +1653,7 @@ export default class OCPPUtils {
     // Check
     if (Utils.isEmptyArray(chargingStation.ocppStandardParameters) && Utils.isEmptyArray(chargingStation.ocppVendorParameters)) {
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
         module: MODULE_NAME, method: 'updateChargingStationOcppParametersWithTemplate',
@@ -1673,7 +1673,7 @@ export default class OCPPUtils {
         if (currentOcppParam && currentOcppParam.value === ocppParameter.value) {
           // Ok: Already the good value
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
             module: MODULE_NAME, method: 'updateChargingStationOcppParametersWithTemplate',
@@ -1689,7 +1689,7 @@ export default class OCPPUtils {
         if (result.status === OCPPConfigurationStatus.ACCEPTED) {
           updatedOcppParameters.inSuccess++;
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
             module: MODULE_NAME, method: 'updateChargingStationOcppParametersWithTemplate',
@@ -1699,7 +1699,7 @@ export default class OCPPUtils {
           updatedOcppParameters.inSuccess++;
           rebootRequired = true;
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
             module: MODULE_NAME, method: 'updateChargingStationOcppParametersWithTemplate',
@@ -1708,7 +1708,7 @@ export default class OCPPUtils {
         } else {
           updatedOcppParameters.inError++;
           await Logging.logError({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
             module: MODULE_NAME, method: 'updateChargingStationOcppParametersWithTemplate',
@@ -1718,7 +1718,7 @@ export default class OCPPUtils {
       } catch (error) {
         updatedOcppParameters.inError++;
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
           module: MODULE_NAME, method: 'updateChargingStationOcppParametersWithTemplate',
@@ -1728,7 +1728,7 @@ export default class OCPPUtils {
       }
     }
     await Logging.logActionsResponse(
-      tenant.id, ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
+      tenant, ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
       MODULE_NAME, 'updateChargingStationOcppParametersWithTemplate', updatedOcppParameters,
       `{{inSuccess}} OCPP Parameter(s) were successfully synchronized, check details in the Tenant ${Utils.buildTenantName(tenant)})`,
       `{{inError}} OCPP Parameter(s) failed to be synchronized, check details in the Tenant ${Utils.buildTenantName(tenant)})`,
@@ -1768,7 +1768,7 @@ export default class OCPPUtils {
     }
     if (triggerConditionalReset && result.status === OCPPConfigurationStatus.REBOOT_REQUIRED) {
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.CHARGING_STATION_CHANGE_CONFIGURATION,
         module: MODULE_NAME, method: 'requestChangeChargingStationOcppParameter',
@@ -1831,7 +1831,7 @@ export default class OCPPUtils {
     let resetResult = await chargingStationClient.reset({ type: resetType });
     if (resetResult.status === OCPPResetStatus.REJECTED) {
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.CHARGING_STATION_RESET,
         module: MODULE_NAME, method: 'triggerChargingStationReset',
@@ -1839,7 +1839,7 @@ export default class OCPPUtils {
       });
       if (hardResetFallback && resetType !== OCPPResetType.HARD) {
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.CHARGING_STATION_RESET,
           module: MODULE_NAME, method: 'triggerChargingStationReset',
@@ -1848,7 +1848,7 @@ export default class OCPPUtils {
         resetResult = await chargingStationClient.reset({ type: OCPPResetType.HARD });
         if (resetResult.status === OCPPResetStatus.REJECTED) {
           await Logging.logError({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.CHARGING_STATION_RESET,
             module: MODULE_NAME, method: 'triggerChargingStationReset',
@@ -1989,7 +1989,7 @@ export default class OCPPUtils {
                 for (const parameter in ocppStandardParameters.parameters) {
                   if (OCPPUtils.isOcppParamForPowerLimitationKey(parameter, chargingStation)) {
                     await Logging.logError({
-                      tenantID: tenant.id,
+                      tenant,
                       source: chargingStation.id,
                       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
                       module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2000,7 +2000,7 @@ export default class OCPPUtils {
                   }
                   if (Constants.OCPP_HEARTBEAT_KEYS.includes(parameter)) {
                     await Logging.logWarning({
-                      tenantID: tenant.id,
+                      tenant,
                       source: chargingStation.id,
                       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
                       module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2050,7 +2050,7 @@ export default class OCPPUtils {
                 for (const parameter in ocppVendorParameters.parameters) {
                   if (OCPPUtils.isOcppParamForPowerLimitationKey(parameter, chargingStation)) {
                     await Logging.logError({
-                      tenantID: tenant.id,
+                      tenant,
                       source: chargingStation.id,
                       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
                       module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2061,7 +2061,7 @@ export default class OCPPUtils {
                   }
                   if (Constants.OCPP_HEARTBEAT_KEYS.includes(parameter)) {
                     await Logging.logWarning({
-                      tenantID: tenant.id,
+                      tenant,
                       source: chargingStation.id,
                       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
                       module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2105,7 +2105,7 @@ export default class OCPPUtils {
         chargingStation.templateHash = chargingStationTemplate.hash;
         templateUpdateResult.chargingStationUpdated = true;
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
           module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2114,7 +2114,7 @@ export default class OCPPUtils {
         });
         if (!Utils.isEmptyArray(sectionsNotMatched)) {
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
             module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2125,7 +2125,7 @@ export default class OCPPUtils {
         return templateUpdateResult;
       }
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2135,7 +2135,7 @@ export default class OCPPUtils {
       return templateUpdateResult;
     } else if (chargingStationTemplate && chargingStation.manualConfiguration) {
       await Logging.logWarning({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
         module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',
@@ -2151,7 +2151,7 @@ export default class OCPPUtils {
       noMatchingTemplateLogMsg = 'No template matching the charging station has been found';
     }
     await Logging.logWarning({
-      tenantID: tenant.id,
+      tenant,
       source: chargingStation.id,
       action: ServerAction.UPDATE_CHARGING_STATION_WITH_TEMPLATE,
       module: MODULE_NAME, method: 'enrichChargingStationWithTemplate',

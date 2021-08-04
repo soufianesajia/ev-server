@@ -347,7 +347,7 @@ export default class MongoDBStorage {
           const message = `Error in creating collection '${tenantID}.${tenantCollectionName}': ${error.message as string}`;
           console.error(chalk.red(message));
           await Logging.logError({
-            tenantID: Constants.DEFAULT_TENANT,
+            tenant: Constants.DEFAULT_TENANT_OBJECT,
             action: ServerAction.MONGO_DB,
             module: MODULE_NAME, method: 'handleIndexesInCollection',
             message,
@@ -378,7 +378,7 @@ export default class MongoDBStorage {
               const message = `Drop index '${databaseIndex.name}' in collection ${tenantCollectionName}`;
               console.log(message);
               await Logging.logInfo({
-                tenantID: Constants.DEFAULT_TENANT,
+                tenant: Constants.DEFAULT_TENANT_OBJECT,
                 action: ServerAction.MONGO_DB,
                 module: MODULE_NAME, method: 'handleIndexesInCollection',
                 message,
@@ -391,7 +391,7 @@ export default class MongoDBStorage {
               const message = `Error in dropping index '${databaseIndex.name}' in '${tenantCollectionName}': ${error.message}`;
               console.error(chalk.red(message));
               await Logging.logError({
-                tenantID: Constants.DEFAULT_TENANT,
+                tenant: Constants.DEFAULT_TENANT_OBJECT,
                 action: ServerAction.MONGO_DB,
                 module: MODULE_NAME, method: 'handleIndexesInCollection',
                 message,
@@ -411,7 +411,7 @@ export default class MongoDBStorage {
               const message = `Create index ${JSON.stringify(index)} in collection ${tenantCollectionName}`;
               console.log(message);
               await Logging.logInfo({
-                tenantID: Constants.DEFAULT_TENANT,
+                tenant: Constants.DEFAULT_TENANT_OBJECT,
                 action: ServerAction.MONGO_DB,
                 module: MODULE_NAME, method: 'handleIndexesInCollection',
                 message,
@@ -424,7 +424,7 @@ export default class MongoDBStorage {
               const message = `Error in creating index '${JSON.stringify(index.fields)}' with options '${JSON.stringify(index.options)}' in '${tenantCollectionName}': ${error.message as string}`;
               console.error(chalk.red(message));
               await Logging.logError({
-                tenantID: Constants.DEFAULT_TENANT,
+                tenant: Constants.DEFAULT_TENANT_OBJECT,
                 action: ServerAction.MONGO_DB,
                 module: MODULE_NAME, method: 'handleIndexesInCollection',
                 message,
@@ -438,7 +438,7 @@ export default class MongoDBStorage {
       const message = `Unexpected error in handling Collection '${tenantID}.${name}': ${error.message as string}`;
       console.error(chalk.red(message));
       await Logging.logError({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.MONGO_DB,
         module: MODULE_NAME, method: 'handleIndexesInCollection',
         message,

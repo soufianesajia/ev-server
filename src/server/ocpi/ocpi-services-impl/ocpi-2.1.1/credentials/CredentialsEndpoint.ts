@@ -46,7 +46,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
     }
     // Log body
     await Logging.logInfo({
-      tenantID: tenant.id,
+      tenant,
       action: ServerAction.OCPI_DELETE_CREDENTIALS,
       message: 'Received unregister',
       source: Constants.CENTRAL_SERVER,
@@ -78,7 +78,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
     const credential: OCPICredential = req.body;
     // Log body
     await Logging.logDebug({
-      tenantID: tenant.id,
+      tenant,
       action: ServerAction.OCPI_POST_CREDENTIALS,
       message: 'Received credential object',
       source: Constants.CENTRAL_SERVER,
@@ -103,7 +103,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
     }
     // Log body
     await Logging.logDebug({
-      tenantID: tenant.id,
+      tenant,
       action: ServerAction.OCPI_POST_CREDENTIALS,
       message: 'Received token',
       source: Constants.CENTRAL_SERVER,
@@ -131,7 +131,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
     ocpiEndpoint.businessDetails = credential.business_details;
     // Log updated ocpi endpoint
     await Logging.logDebug({
-      tenantID: tenant.id,
+      tenant,
       action: ServerAction.OCPI_POST_CREDENTIALS,
       message: 'OCPI Server found and updated with credential object',
       source: Constants.CENTRAL_SERVER,
@@ -149,7 +149,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
       });
       // Log available OCPI Versions
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.OCPI_POST_CREDENTIALS,
         message: 'Available OCPI Versions',
         source: Constants.CENTRAL_SERVER,
@@ -175,7 +175,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
 
           // Log correct OCPI service found
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.OCPI_POST_CREDENTIALS,
             message: 'Correct OCPI version found',
             source: Constants.CENTRAL_SERVER,
@@ -201,7 +201,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
       });
       // Log available OCPI services
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.OCPI_POST_CREDENTIALS,
         message: 'Available OCPI services',
         source: Constants.CENTRAL_SERVER,
@@ -241,7 +241,7 @@ export default class CredentialsEndpoint extends AbstractEndpoint {
     const respCredential = await OCPIUtilsService.buildOCPICredentialObject(tenant, ocpiEndpoint.localToken, ocpiEndpoint.role, versionUrl);
     // Log available OCPI Versions
     await Logging.logDebug({
-      tenantID: tenant.id,
+      tenant,
       action: ServerAction.OCPI_POST_CREDENTIALS,
       message: 'Response with credential object',
       source: Constants.CENTRAL_SERVER,

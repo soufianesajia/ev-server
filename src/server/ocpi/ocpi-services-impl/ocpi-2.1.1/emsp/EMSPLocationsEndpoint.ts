@@ -131,7 +131,7 @@ export default class EMSPLocationsEndpoint extends AbstractEndpoint {
       }
     } else {
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.OCPI_PATCH_LOCATION,
         message: `Patching of Location ID '${locationID}' is not supported currently`,
         source: Constants.CENTRAL_SERVER,
@@ -300,7 +300,7 @@ export default class EMSPLocationsEndpoint extends AbstractEndpoint {
         // Delete
         await ChargingStationStorage.deleteChargingStation(tenant, chargingStation.id);
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           action: ServerAction.OCPI_PATCH_LOCATION,
           message: `Charging Station '${evse.uid}' of Location '${location.name}' with ID '${location.id}' has been deleted`,
           source: Constants.CENTRAL_SERVER,
@@ -313,7 +313,7 @@ export default class EMSPLocationsEndpoint extends AbstractEndpoint {
       const chargingStation = OCPIUtilsService.convertEvseToChargingStation(evse, location);
       await ChargingStationStorage.saveChargingStation(tenant, chargingStation);
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.OCPI_PATCH_LOCATION,
         message: `Charging Station '${evse.uid}' of Location '${location.name}' with ID '${location.id}' has been updated`,
         source: Constants.CENTRAL_SERVER,

@@ -108,7 +108,7 @@ export default class OCPPService {
       this.requestOCPPConfigurationDelayed(tenant, chargingStation, templateUpdateResult, heartbeatIntervalSecs);
       // Log
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.BOOT_NOTIFICATION,
         module: MODULE_NAME, method: 'handleBootNotification',
@@ -159,7 +159,7 @@ export default class OCPPService {
         await OCPPStorage.saveHeartbeat(tenant, heartbeat);
         // Log
         await Logging.logDebug({
-          tenantID: tenant.id,
+          tenant: tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'handleHeartbeat',
           action: ServerAction.HEARTBEAT,
@@ -194,7 +194,7 @@ export default class OCPPService {
         // Skip connectorId = 0 case
         if (statusNotification.connectorId <= 0) {
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             action: ServerAction.STATUS_NOTIFICATION,
             module: MODULE_NAME, method: 'handleStatusNotification',
@@ -230,7 +230,7 @@ export default class OCPPService {
         this.filterMeterValuesOnSpecificChargingStations(tenant, chargingStation, normalizedMeterValues);
         if (Utils.isEmptyArray(normalizedMeterValues.values)) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant: tenant,
             source: chargingStation.id,
             module: MODULE_NAME, method: 'handleMeterValues',
             action: ServerAction.METER_VALUES,
@@ -283,7 +283,7 @@ export default class OCPPService {
         }
         // Log
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.METER_VALUES,
           user: transaction.userID,
@@ -318,7 +318,7 @@ export default class OCPPService {
         await OCPPStorage.saveAuthorize(tenant, authorize);
         // Log
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'handleAuthorize',
           action: ServerAction.AUTHORIZE, user: (authorize.user ? authorize.user : null),
@@ -361,7 +361,7 @@ export default class OCPPService {
         await OCPPStorage.saveDiagnosticsStatusNotification(tenant, diagnosticsStatusNotification);
         // Log
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.DIAGNOSTICS_STATUS_NOTIFICATION,
           module: MODULE_NAME, method: 'handleDiagnosticsStatusNotification',
@@ -396,7 +396,7 @@ export default class OCPPService {
         await OCPPStorage.saveFirmwareStatusNotification(tenant, firmwareStatusNotification);
         // Log
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'handleFirmwareStatusNotification',
           action: ServerAction.FIRMWARE_STATUS_NOTIFICATION,
@@ -455,7 +455,7 @@ export default class OCPPService {
         this.notifyStartTransaction(tenant, newTransaction, chargingStation, user);
         // Log
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'handleStartTransaction',
           action: ServerAction.START_TRANSACTION, user: user,
@@ -499,7 +499,7 @@ export default class OCPPService {
         await OCPPStorage.saveDataTransfer(tenant, dataTransfer);
         // Log
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'handleDataTransfer',
           action: ServerAction.CHARGING_STATION_DATA_TRANSFER, message: 'Data Transfer has been saved',
@@ -571,7 +571,7 @@ export default class OCPPService {
         // Recompute the Smart Charging Plan
         await this.triggerSmartChargingStopTransaction(tenant, chargingStation, transaction);
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'handleStopTransaction',
           action: ServerAction.STOP_TRANSACTION,
@@ -662,7 +662,7 @@ export default class OCPPService {
           await this.triggerSmartCharging(tenant, chargingStation);
         } catch (error) {
           await Logging.logError({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             module: MODULE_NAME, method: 'triggerSmartChargingStopTransaction',
             action: ServerAction.STOP_TRANSACTION,
@@ -686,7 +686,7 @@ export default class OCPPService {
       try {
         await OCPPUtils.clearAndDeleteChargingProfile(tenant, chargingProfile);
         await Logging.logDebug({
-          tenantID: tenant.id,
+          tenant,
           source: transaction.chargeBoxID,
           action: ServerAction.CHARGING_PROFILE_DELETE,
           message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} TX Charging Profile with ID '${chargingProfile.id}'`,
@@ -695,7 +695,7 @@ export default class OCPPService {
         });
       } catch (error) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           source: transaction.chargeBoxID,
           action: ServerAction.CHARGING_PROFILE_DELETE,
           message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Cannot delete TX Charging Profile with ID '${chargingProfile.id}'`,
@@ -735,7 +735,7 @@ export default class OCPPService {
     await this.processSmartChargingStatusNotification(tenant, chargingStation, connector);
     // Log
     await Logging.logInfo({
-      tenantID: tenant.id,
+      tenant,
       source: chargingStation.id,
       module: MODULE_NAME, method: 'processConnectorStatusNotification',
       action: ServerAction.STATUS_NOTIFICATION,
@@ -755,7 +755,7 @@ export default class OCPPService {
         await this.triggerSmartCharging(tenant, chargingStation);
       } catch (error) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'processSmartChargingStatusNotification',
           action: ServerAction.STATUS_NOTIFICATION,
@@ -841,7 +841,7 @@ export default class OCPPService {
               // Negative inactivity
               if (lastTransaction.stop.extraInactivitySecs < 0) {
                 await Logging.logWarning({
-                  tenantID: tenant.id,
+                  tenant,
                   source: chargingStation.id,
                   module: MODULE_NAME, method: 'checkAndUpdateLastCompletedTransaction',
                   action: ServerAction.STATUS_NOTIFICATION,
@@ -856,7 +856,7 @@ export default class OCPPService {
                 // Build extra inactivity consumption
                 await OCPPUtils.buildExtraConsumptionInactivity(tenant, lastTransaction);
                 await Logging.logInfo({
-                  tenantID: tenant.id,
+                  tenant,
                   source: chargingStation.id,
                   user: lastTransaction.userID,
                   module: MODULE_NAME, method: 'checkAndUpdateLastCompletedTransaction',
@@ -868,7 +868,7 @@ export default class OCPPService {
             // No extra inactivity
             } else {
               await Logging.logInfo({
-                tenantID: tenant.id,
+                tenant,
                 source: chargingStation.id,
                 user: lastTransaction.userID,
                 module: MODULE_NAME, method: 'checkAndUpdateLastCompletedTransaction',
@@ -893,7 +893,7 @@ export default class OCPPService {
         await TransactionStorage.saveTransaction(tenant, lastTransaction);
       } else if (!Utils.isNullOrUndefined(lastTransaction)) {
         await Logging.logWarning({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'checkAndUpdateLastCompletedTransaction',
           action: ServerAction.STATUS_NOTIFICATION,
@@ -948,7 +948,7 @@ export default class OCPPService {
         }
       } catch (error) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'updateOCPIConnectorStatus',
           action: ServerAction.OCPI_PATCH_STATUS,
@@ -967,7 +967,7 @@ export default class OCPPService {
       }
     } catch (error) {
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         module: MODULE_NAME, method: 'updateOICPConnectorStatus',
         action: ServerAction.OICP_UPDATE_EVSE_STATUS,
@@ -984,7 +984,7 @@ export default class OCPPService {
         connector.errorCode !== ChargePointErrorCode.NO_ERROR) {
       // Log
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         action: ServerAction.STATUS_NOTIFICATION,
         module: MODULE_NAME, method: 'notifyStatusNotification',
@@ -1186,7 +1186,7 @@ export default class OCPPService {
       const instantPower = Utils.truncTo(Utils.createDecimal(foundConnector.currentInstantWatts).div(1000).toNumber(), 3);
       const totalConsumption = Utils.truncTo(Utils.createDecimal(foundConnector.currentTotalConsumptionWh).div(1000).toNumber(), 3);
       await Logging.logInfo({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         module: MODULE_NAME, method: 'updateChargingStationWithTransaction',
         action: ServerAction.CONSUMPTION,
@@ -1323,7 +1323,7 @@ export default class OCPPService {
         // Remove Sample Clock
         if (meterValue.attribute && meterValue.attribute.context === OCPPReadingContext.SAMPLE_CLOCK) {
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             module: MODULE_NAME, method: 'filterMeterValuesOnSpecificChargingStations',
             action: ServerAction.METER_VALUES,
@@ -1426,7 +1426,7 @@ export default class OCPPService {
         if (activeTransaction.currentTotalConsumptionWh <= 0) {
           // No consumption: delete
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             module: MODULE_NAME, method: 'stopOrDeleteActiveTransactions',
             action: ServerAction.CLEANUP_TRANSACTION,
@@ -1452,7 +1452,7 @@ export default class OCPPService {
           if (result.idTagInfo.status === OCPPAuthorizationStatus.INVALID) {
             // Cannot stop it
             await Logging.logError({
-              tenantID: tenant.id,
+              tenant,
               source: chargingStation.id,
               module: MODULE_NAME, method: 'stopOrDeleteActiveTransactions',
               action: ServerAction.CLEANUP_TRANSACTION,
@@ -1463,7 +1463,7 @@ export default class OCPPService {
           } else {
             // Stopped
             await Logging.logWarning({
-              tenantID: tenant.id,
+              tenant,
               source: chargingStation.id,
               module: MODULE_NAME, method: 'stopOrDeleteActiveTransactions',
               action: ServerAction.CLEANUP_TRANSACTION,
@@ -1617,7 +1617,7 @@ export default class OCPPService {
       foundConnector.currentUserID = transaction.userID;
     } else {
       await Logging.logWarning({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         module: MODULE_NAME, method: 'clearChargingStationConnectorRuntimeData',
         action: ServerAction.START_TRANSACTION, user: user,
@@ -1872,7 +1872,7 @@ export default class OCPPService {
       }
       if (!heartbeatIntervalOcppParamSet) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           action: ServerAction.BOOT_NOTIFICATION,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'requestOCPPConfigurationDelayed',
@@ -1886,7 +1886,7 @@ export default class OCPPService {
       }
       if (result.status !== OCPPConfigurationStatus.ACCEPTED) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant,
           action: ServerAction.BOOT_NOTIFICATION,
           source: chargingStation.id,
           module: MODULE_NAME, method: 'requestOCPPConfigurationDelayed',
@@ -1949,7 +1949,7 @@ export default class OCPPService {
     // Ignore it (DELTA bug)?
     if (stopTransaction.transactionId === 0) {
       await Logging.logWarning({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         module: MODULE_NAME, method: 'bypassStopTransaction',
         action: ServerAction.STOP_TRANSACTION,
@@ -1980,7 +1980,7 @@ export default class OCPPService {
         const chargingStationClient = await ChargingStationClientFactory.getChargingStationClient(tenant, chargingStation);
         if (!chargingStationClient) {
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: chargingStation.id,
             module: MODULE_NAME, method: 'getTransactionFromMeterValues',
             action: ServerAction.STOP_TRANSACTION,
@@ -1994,7 +1994,7 @@ export default class OCPPService {
           });
           if (result.status === OCPPRemoteStartStopStatus.ACCEPTED) {
             await Logging.logInfo({
-              tenantID: tenant.id,
+              tenant,
               source: chargingStation.id,
               module: MODULE_NAME, method: 'getTransactionFromMeterValues',
               action: ServerAction.STOP_TRANSACTION,
@@ -2003,7 +2003,7 @@ export default class OCPPService {
             });
           } else {
             await Logging.logWarning({
-              tenantID: tenant.id,
+              tenant,
               source: chargingStation.id,
               module: MODULE_NAME, method: 'getTransactionFromMeterValues',
               action: ServerAction.STOP_TRANSACTION,
@@ -2025,7 +2025,7 @@ export default class OCPPService {
     // Received Meter Values after the Transaction End Meter Value
     if (transaction.transactionEndReceived) {
       await Logging.logWarning({
-        tenantID: tenant.id,
+        tenant,
         source: chargingStation.id,
         module: MODULE_NAME, method: 'getTransactionFromMeterValues',
         action: ServerAction.METER_VALUES,
@@ -2086,7 +2086,7 @@ export default class OCPPService {
       // The consumption should be the same
       if (transaction.lastConsumption.value !== stopTransaction.meterStop) {
         await Logging.logWarning({
-          tenantID: tenant.id,
+          tenant,
           source: chargingStation.id,
           action: ServerAction.STOP_TRANSACTION,
           module: MODULE_NAME, method: 'checkAndApplyLastConsumptionInStopTransaction',

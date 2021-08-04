@@ -59,7 +59,7 @@ export default class RemoveDuplicateTagVisualIDsTask extends MigrationTask {
     // Log in the default tenant
     if (updated > 0) {
       await Logging.logDebug({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         module: MODULE_NAME, method: 'migrateTenant',
         action: ServerAction.MIGRATION,
         message: `${updated} duplicate Tag(s) Visual IDs have been made unique in Tenant ${Utils.buildTenantName(tenant)}`

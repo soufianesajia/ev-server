@@ -99,7 +99,7 @@ export default class CpoOCPIClient extends OCPIClient {
       const numberOfTags: number = response.data.data.length;
       totalNumberOfToken += numberOfTags;
       await Logging.logDebug({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.OCPI_PULL_TOKENS,
         message: `${numberOfTags.toString()} Tokens retrieved from ${tokensUrl}`,
         module: MODULE_NAME, method: 'pullTokens'
@@ -148,14 +148,14 @@ export default class CpoOCPIClient extends OCPIClient {
       const executionDurationLoopSecs = (new Date().getTime() - startTimeLoop) / 1000;
       const executionDurationTotalLoopSecs = (new Date().getTime() - startTime) / 1000;
       await Logging.logDebug({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.OCPI_PULL_TOKENS,
         message: `${numberOfTags.toString()} token(s) processed in ${executionDurationLoopSecs}s - Total of ${totalNumberOfToken} token(s) processed in ${executionDurationTotalLoopSecs}s`,
         module: MODULE_NAME, method: 'pullTokens'
       });
     } while (nextResult);
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PULL_TOKENS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_PULL_TOKENS,
       MODULE_NAME, 'pullTokens', result,
       `{{inSuccess}} token(s) were successfully pulled in ${executionDurationSecs}s`,
       `{{inError}} token(s) failed to be pulled in ${executionDurationSecs}s`,
@@ -214,7 +214,7 @@ export default class CpoOCPIClient extends OCPIClient {
       });
     }
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: chargingStation.id,
       action: ServerAction.OCPI_AUTHORIZE_TOKEN,
       message: `OCPI Tag ID '${token.uid}' has been authorized successfully`,
@@ -259,7 +259,7 @@ export default class CpoOCPIClient extends OCPIClient {
       session: ocpiSession
     };
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: chargingStation.id,
       action: ServerAction.OCPI_START_SESSION,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction has been started successfully`,
@@ -305,7 +305,7 @@ export default class CpoOCPIClient extends OCPIClient {
         },
       });
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_PUSH_SESSIONS,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction has been patched successfully`,
@@ -350,7 +350,7 @@ export default class CpoOCPIClient extends OCPIClient {
         },
       });
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_STOP_SESSION,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction has been stopped successfully`,
@@ -405,7 +405,7 @@ export default class CpoOCPIClient extends OCPIClient {
         },
       });
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_PUSH_CDRS,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI CDR has been sent successfully`,
@@ -439,7 +439,7 @@ export default class CpoOCPIClient extends OCPIClient {
       results.push(result.data);
     }
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: chargingStation.id,
       action: ServerAction.OCPI_PATCH_STATUS,
       message: 'Charging Station has been removed successfully',
@@ -515,7 +515,7 @@ export default class CpoOCPIClient extends OCPIClient {
       { concurrency: Constants.OCPI_MAX_PARALLEL_REQUESTS });
     }
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_CHECK_SESSIONS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_CHECK_SESSIONS,
       MODULE_NAME, 'checkSessions', result,
       `{{inSuccess}} Transaction(s) were successfully checked in ${executionDurationSecs}s`,
       `{{inError}} Transaction(s) failed to be checked in ${executionDurationSecs}s`,
@@ -567,7 +567,7 @@ export default class CpoOCPIClient extends OCPIClient {
       { concurrency: Constants.OCPI_MAX_PARALLEL_REQUESTS });
     }
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_CHECK_LOCATIONS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_CHECK_LOCATIONS,
       MODULE_NAME, 'checkLocations', result,
       `{{inSuccess}} Location(s) were successfully checked in ${executionDurationSecs}s`,
       `{{inError}} Location(s) failed to be checked in ${executionDurationSecs}s`,
@@ -613,7 +613,7 @@ export default class CpoOCPIClient extends OCPIClient {
       { concurrency: Constants.OCPI_MAX_PARALLEL_REQUESTS });
     }
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_CHECK_CDRS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_CHECK_CDRS,
       MODULE_NAME, 'checkCdrs', result,
       `{{inSuccess}} CDR(s) were successfully checked in ${executionDurationSecs}s`,
       `{{inError}} CDR(s) failed to be checked in ${executionDurationSecs}s`,
@@ -730,7 +730,7 @@ export default class CpoOCPIClient extends OCPIClient {
     // Save
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
     await OCPIEndpointStorage.saveOcpiEndpoint(this.tenant, this.ocpiEndpoint);
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PATCH_STATUS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_PATCH_STATUS,
       MODULE_NAME, 'sendEVSEStatuses', result,
       `{{inSuccess}} EVSE Status(es) were successfully patched in ${executionDurationSecs}s`,
       `{{inError}} EVSE Status(es) failed to be patched in ${executionDurationSecs}s`,
@@ -792,7 +792,7 @@ export default class CpoOCPIClient extends OCPIClient {
         },
       });
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: chargingStationID,
       action: ServerAction.OCPI_PATCH_STATUS,
       message: `OCPI Charging Station ID '${evseUID}' has been patched successfully to '${newStatus}'`,
@@ -826,7 +826,7 @@ export default class CpoOCPIClient extends OCPIClient {
     // Create if it does not exit
     if (response.data.status_code === 3001) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_CHECK_CDRS,
         message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} CDR does not exist in IOP`,
@@ -848,7 +848,7 @@ export default class CpoOCPIClient extends OCPIClient {
       if (cdr) {
         // CDR checked
         await Logging.logInfo({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: transaction.chargeBoxID,
           action: ServerAction.OCPI_CHECK_CDRS,
           message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} CDR has been checked successfully`,
@@ -859,7 +859,7 @@ export default class CpoOCPIClient extends OCPIClient {
       }
     }
     await Logging.logError({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_CHECK_CDRS,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Failed to check CDR '${transaction.ocpiData.session.id}' at ${cdrsUrl}/${transaction.ocpiData.cdr.id}`,
@@ -894,7 +894,7 @@ export default class CpoOCPIClient extends OCPIClient {
       const session = response.data.data as OCPISession;
       if (session) {
         await Logging.logInfo({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: transaction.chargeBoxID,
           action: ServerAction.OCPI_CHECK_SESSIONS,
           message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Transaction has been checked successfully`,
@@ -905,7 +905,7 @@ export default class CpoOCPIClient extends OCPIClient {
       }
     }
     await Logging.logError({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_CHECK_SESSIONS,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Failed to check Transaction at ${sessionsUrl}`,
@@ -950,7 +950,7 @@ export default class CpoOCPIClient extends OCPIClient {
       });
     }
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_CHECK_LOCATIONS,
       message: `Location '${location.name}' with ID '${location.id}' checked successfully`,
       module: MODULE_NAME, method: 'checkLocation',

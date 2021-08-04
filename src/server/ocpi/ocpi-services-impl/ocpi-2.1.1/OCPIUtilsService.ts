@@ -546,7 +546,7 @@ export default class OCPIUtilsService {
     }
     if (moment(session.last_updated).isBefore(transaction.lastConsumption.timestamp)) {
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.OCPI_PUSH_SESSION,
         source: Constants.CENTRAL_SERVER,
         module: MODULE_NAME, method: 'updateTransaction',

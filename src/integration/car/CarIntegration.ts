@@ -42,7 +42,7 @@ export default abstract class CarIntegration {
           actionsDone.inSuccess++;
           // Log
           await Logging.logDebug({
-            tenantID: Constants.DEFAULT_TENANT,
+            tenant: Constants.DEFAULT_TENANT_OBJECT,
             source: Constants.CENTRAL_SERVER,
             action: ServerAction.SYNCHRONIZE_CAR_CATALOGS,
             module: MODULE_NAME, method: 'synchronizeCarCatalogs',
@@ -77,7 +77,7 @@ export default abstract class CarIntegration {
           actionsDone.inSuccess++;
           // Log
           await Logging.logDebug({
-            tenantID: Constants.DEFAULT_TENANT,
+            tenant: Constants.DEFAULT_TENANT_OBJECT,
             source: Constants.CENTRAL_SERVER,
             action: ServerAction.SYNCHRONIZE_CAR_CATALOGS,
             module: MODULE_NAME, method: 'synchronizeCarCatalogs',
@@ -87,7 +87,7 @@ export default abstract class CarIntegration {
       } catch (error) {
         actionsDone.inError++;
         await Logging.logError({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.SYNCHRONIZE_CAR_CATALOGS,
           module: MODULE_NAME, method: 'synchronizeCarCatalogs',
@@ -97,7 +97,7 @@ export default abstract class CarIntegration {
       }
     }
     // Log
-    await Logging.logActionsResponse(Constants.DEFAULT_TENANT, ServerAction.SYNCHRONIZE_CAR_CATALOGS,
+    await Logging.logActionsResponse(Constants.DEFAULT_TENANT_OBJECT, ServerAction.SYNCHRONIZE_CAR_CATALOGS,
       MODULE_NAME, 'synchronizeCarCatalogs', actionsDone,
       '{{inSuccess}} car(s) were successfully synchronized',
       '{{inError}} car(s) failed to be synchronized',

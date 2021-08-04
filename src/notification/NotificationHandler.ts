@@ -69,7 +69,7 @@ export default class NotificationHandler {
       }
       return false;
     } catch (error) {
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.NOTIFICATION, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.NOTIFICATION, error);
     }
   }
 
@@ -86,7 +86,7 @@ export default class NotificationHandler {
       );
       return notifications.count > 0;
     } catch (error) {
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.NOTIFICATION, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.NOTIFICATION, error);
     }
   }
 
@@ -125,7 +125,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.END_OF_CHARGE, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.END_OF_CHARGE, error);
           }
         }
       }
@@ -167,7 +167,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.OPTIMAL_CHARGE_REACHED, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.OPTIMAL_CHARGE_REACHED, error);
           }
         }
       }
@@ -209,7 +209,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.END_OF_SESSION, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.END_OF_SESSION, error);
           }
         }
       }
@@ -251,7 +251,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.END_OF_SESSION, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.END_OF_SESSION, error);
           }
         }
       }
@@ -279,7 +279,7 @@ export default class NotificationHandler {
             await notificationSource.notificationTask.sendRequestPassword(
               sourceData, user, tenant, NotificationSeverity.INFO);
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.REQUEST_PASSWORD, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.REQUEST_PASSWORD, error);
           }
         }
       }
@@ -310,7 +310,7 @@ export default class NotificationHandler {
                 sourceData, user, tenant, NotificationSeverity.WARNING);
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.USER_ACCOUNT_STATUS_CHANGED, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.USER_ACCOUNT_STATUS_CHANGED, error);
           }
         }
       }
@@ -338,7 +338,7 @@ export default class NotificationHandler {
             await notificationSource.notificationTask.sendNewRegisteredUser(
               sourceData, user, tenant, NotificationSeverity.INFO);
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.NEW_REGISTERED_USER, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.NEW_REGISTERED_USER, error);
           }
         }
       }
@@ -365,7 +365,7 @@ export default class NotificationHandler {
             await notificationSource.notificationTask.sendAccountVerificationNotification(
               sourceData, user, tenant, NotificationSeverity.INFO);
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.USER_ACCOUNT_VERIFICATION, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.USER_ACCOUNT_VERIFICATION, error);
           }
         }
       }
@@ -407,7 +407,7 @@ export default class NotificationHandler {
                   adminSourceData, adminUser, tenant, NotificationSeverity.INFO);
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.ADMIN_ACCOUNT_VERIFICATION, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.ADMIN_ACCOUNT_VERIFICATION, error);
             }
           }
         }
@@ -436,18 +436,16 @@ export default class NotificationHandler {
             await notificationSource.notificationTask.sendVerificationEmail(
               sourceData, user, tenant, NotificationSeverity.INFO);
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.VERIFICATION_EMAIL, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.VERIFICATION_EMAIL, error);
           }
         }
       }
     }
   }
 
-  static async sendVerificationEmailUserImport(tenantID: string, notificationID: string, user: User,
+  static async sendVerificationEmailUserImport(tenant: Tenant, notificationID: string, user: User,
       sourceData: VerificationEmailNotification): Promise<void> {
-    if (tenantID !== Constants.DEFAULT_TENANT) {
-      // Get the Tenant
-      const tenant = await TenantStorage.getTenant(tenantID, { withLogo: true });
+    if (tenant.id !== Constants.DEFAULT_TENANT) {
       sourceData.tenantLogoURL = tenant.logo;
       // For each Sources
       for (const notificationSource of NotificationHandler.notificationSources) {
@@ -461,7 +459,7 @@ export default class NotificationHandler {
             await notificationSource.notificationTask.sendVerificationEmailUserImport(
               sourceData, user, tenant, NotificationSeverity.INFO);
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenantID, ServerAction.VERIFICATION_EMAIL_USER_IMPORT, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.VERIFICATION_EMAIL_USER_IMPORT, error);
           }
         }
       }
@@ -501,7 +499,7 @@ export default class NotificationHandler {
                   sourceData, adminUser, tenant, NotificationSeverity.ERROR);
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.CHARGING_STATION_STATUS_ERROR, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.CHARGING_STATION_STATUS_ERROR, error);
             }
           }
         }
@@ -535,7 +533,7 @@ export default class NotificationHandler {
                   sourceData, adminUser, tenant, NotificationSeverity.WARNING);
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.CHARGING_STATION_REGISTERED, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.CHARGING_STATION_REGISTERED, error);
             }
           }
         }
@@ -569,7 +567,7 @@ export default class NotificationHandler {
                   sourceData, adminUser, tenant, NotificationSeverity.WARNING);
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.UNKNOWN_USER_BADGED, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.UNKNOWN_USER_BADGED, error);
             }
           }
         }
@@ -614,7 +612,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.TRANSACTION_STARTED, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.TRANSACTION_STARTED, error);
           }
         }
       }
@@ -655,7 +653,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.EMAIL_SERVER_ERROR, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.EMAIL_SERVER_ERROR, error);
             }
           }
         }
@@ -703,7 +701,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.PATCH_EVSE_STATUS_ERROR, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.PATCH_EVSE_STATUS_ERROR, error);
             }
           }
         }
@@ -746,7 +744,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.PATCH_EVSE_STATUS_ERROR, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.PATCH_EVSE_STATUS_ERROR, error);
             }
           }
         }
@@ -789,7 +787,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.PATCH_EVSE_ERROR, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.PATCH_EVSE_ERROR, error);
             }
           }
         }
@@ -823,7 +821,7 @@ export default class NotificationHandler {
                 sourceData, user, tenant, NotificationSeverity.INFO);
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.USER_ACCOUNT_INACTIVITY, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.USER_ACCOUNT_INACTIVITY, error);
           }
         }
       }
@@ -865,7 +863,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.PREPARING_SESSION_NOT_STARTED, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.PREPARING_SESSION_NOT_STARTED, error);
           }
         }
       }
@@ -907,7 +905,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.OFFLINE_CHARGING_STATIONS, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.OFFLINE_CHARGING_STATIONS, error);
             }
           }
         }
@@ -949,7 +947,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.BILLING_USER_SYNCHRONIZATION_FAILED, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.BILLING_USER_SYNCHRONIZATION_FAILED, error);
             }
           }
         }
@@ -991,7 +989,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.BILLING_USER_SYNCHRONIZATION_FAILED, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.BILLING_USER_SYNCHRONIZATION_FAILED, error);
             }
           }
         }
@@ -1033,7 +1031,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.BILLING_PERFORM_OPERATIONS, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.BILLING_PERFORM_OPERATIONS, error);
             }
           }
         }
@@ -1071,7 +1069,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(Constants.DEFAULT_TENANT, ServerAction.CAR_CATALOG_SYNCHRONIZATION_FAILED, error);
+            await Logging.logActionExceptionMessage(Constants.DEFAULT_TENANT_OBJECT, ServerAction.CAR_CATALOG_SYNCHRONIZATION_FAILED, error);
           }
         }
       }
@@ -1113,7 +1111,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.COMPUTE_AND_APPLY_CHARGING_PROFILES_FAILED, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.COMPUTE_AND_APPLY_CHARGING_PROFILES_FAILED, error);
             }
           }
         }
@@ -1153,7 +1151,7 @@ export default class NotificationHandler {
                 }
               }
             } catch (error) {
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.END_USER_REPORT_ERROR, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.END_USER_REPORT_ERROR, error);
             }
           }
         }
@@ -1192,7 +1190,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.OPTIMAL_CHARGE_REACHED, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.OPTIMAL_CHARGE_REACHED, error);
           }
         }
       }
@@ -1229,7 +1227,7 @@ export default class NotificationHandler {
               }
             }
           } catch (error) {
-            await Logging.logActionExceptionMessage(tenant.id, ServerAction.BILLING_NEW_INVOICE, error);
+            await Logging.logActionExceptionMessage(tenant, ServerAction.BILLING_NEW_INVOICE, error);
           }
         }
       }
@@ -1252,7 +1250,7 @@ export default class NotificationHandler {
     if (extraParams.user) {
       // User
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         source: (extraParams.chargingStation ? extraParams.chargingStation.id : null),
         module: MODULE_NAME, method: 'saveNotification',
         action: sourceDescr,
@@ -1262,7 +1260,7 @@ export default class NotificationHandler {
     } else {
       // Admin
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         source: (extraParams.chargingStation ? extraParams.chargingStation.id : null),
         module: MODULE_NAME, method: 'saveNotification',
         action: sourceDescr,

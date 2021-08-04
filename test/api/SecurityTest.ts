@@ -87,7 +87,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing "=") is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -101,7 +101,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing ":") is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -115,7 +115,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing ",") is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -129,7 +129,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing ";") is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -143,7 +143,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing spaces and =) is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -157,7 +157,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing spaces and :) is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -171,7 +171,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing spaces and ,) is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -185,7 +185,7 @@ describe('Security', function() {
     it('Check that sensitive data string (containing spaces and ;) is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -199,7 +199,7 @@ describe('Security', function() {
     it('Check that sensitive data query string is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -213,7 +213,7 @@ describe('Security', function() {
     it('Check that client_id field is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -227,7 +227,7 @@ describe('Security', function() {
     it('Check that client_secret field is anonymized', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -241,7 +241,7 @@ describe('Security', function() {
     it('Check that client_id and client_secret are anonymized in object', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -258,7 +258,7 @@ describe('Security', function() {
     it('Check that sensitive data is anonymized in object with string fields', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -288,7 +288,7 @@ describe('Security', function() {
     it('Check that sensitive data is anonymized in object with query string fields', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',
@@ -306,7 +306,7 @@ describe('Security', function() {
     it('Check that sensitive data is anonymized in array with strings', async () => {
       const logId:string = await Logging.logDebug({
         source: 'test',
-        tenantID: testData.credentials.tenantId,
+        tenant: testData.credentials.tenant,
         action: ServerAction.HTTP_REQUEST,
         message: 'Just a test',
         module: 'test',

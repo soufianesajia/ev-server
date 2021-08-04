@@ -107,7 +107,7 @@ export default class EmspOCPIClient extends OCPIClient {
     // Save
     await OCPIEndpointStorage.saveOcpiEndpoint(this.tenant, this.ocpiEndpoint);
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PUSH_TOKENS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_PUSH_TOKENS,
       MODULE_NAME, 'sendTokens', result,
       `{{inSuccess}} Token(s) were successfully pushed in ${executionDurationSecs}s`,
       `{{inError}} Token(s) failed to be pushed in ${executionDurationSecs}s`,
@@ -187,7 +187,7 @@ export default class EmspOCPIClient extends OCPIClient {
       }
     } while (nextResult);
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PULL_LOCATIONS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_PULL_LOCATIONS,
       MODULE_NAME, 'pullLocations', result,
       `{{inSuccess}} Location(s) were successfully pulled in ${executionDurationSecs}s`,
       `{{inError}} Location(s) failed to be pulled in ${executionDurationSecs}s`,
@@ -245,7 +245,7 @@ export default class EmspOCPIClient extends OCPIClient {
     } while (nextResult);
     result.total = result.failure + result.success;
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PULL_SESSIONS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_PULL_SESSIONS,
       MODULE_NAME, 'pullSessions', result,
       `{{inSuccess}} Session(s) were successfully pulled in ${executionDurationSecs}s`,
       `{{inError}} Session(s) failed to be pulled in ${executionDurationSecs}s`,
@@ -303,7 +303,7 @@ export default class EmspOCPIClient extends OCPIClient {
     } while (nextResult);
     result.total = result.failure + result.success;
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PULL_CDRS,
+    await Logging.logOcpiResult(this.tenant, ServerAction.OCPI_PULL_CDRS,
       MODULE_NAME, 'pullCdrs', result,
       `{{inSuccess}} CDR(s) were successfully pulled in ${executionDurationSecs}s`,
       `{{inError}} CDR(s) failed to be pulled in ${executionDurationSecs}s`,
@@ -391,7 +391,7 @@ export default class EmspOCPIClient extends OCPIClient {
           if (currentChargingStation) {
             await ChargingStationStorage.deleteChargingStation(this.tenant, currentChargingStation.id);
             await Logging.logDebug({
-              tenantID: this.tenant.id,
+              tenant: this.tenant,
               action: ServerAction.OCPI_PULL_LOCATIONS,
               message: `Removed Charging Station EVSE UID '${evse.uid}' in Location '${location.name}' with ID '${location.id}'`,
               module: MODULE_NAME, method: 'processLocation',
@@ -408,7 +408,7 @@ export default class EmspOCPIClient extends OCPIClient {
         await ChargingStationStorage.saveChargingStation(this.tenant, chargingStation);
         await ChargingStationStorage.saveChargingStationOcpiData(this.tenant, chargingStation.id, chargingStation.ocpiData);
         await Logging.logDebug({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           action: ServerAction.OCPI_PULL_LOCATIONS,
           message: `Updated Charging Station ID '${evse.evse_id}' in Location '${location.name}'`,
           module: MODULE_NAME, method: 'processLocation',
@@ -493,7 +493,7 @@ export default class EmspOCPIClient extends OCPIClient {
         },
       });
     await Logging.logDebug({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_START_SESSION,
       source: chargingStation.id,
       message: `${Utils.buildConnectorInfo(connectorID)} OCPI Remote Start session response status '${response.status}'`,
@@ -551,7 +551,7 @@ export default class EmspOCPIClient extends OCPIClient {
         },
       });
     await Logging.logDebug({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_STOP_SESSION,
       source: transaction.chargeBoxID,
       message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Remote Stop response status '${response.status}'`,

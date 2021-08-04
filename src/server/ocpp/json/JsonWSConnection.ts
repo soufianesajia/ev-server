@@ -56,7 +56,7 @@ export default class JsonWSConnection extends WSConnection {
           ServerAction.WS_JSON_CONNECTION_ERROR,
           this.getChargingStationID(),
           MODULE_NAME, 'constructor',
-          this.getTenantID()
+          this.getTenant()
         );
         throw backendError;
     }
@@ -104,7 +104,7 @@ export default class JsonWSConnection extends WSConnection {
       }
       this.initialized = true;
       await Logging.logInfo({
-        tenantID: this.getTenantID(),
+        tenant: this.getTenant(),
         source: this.getChargingStationID(),
         action: ServerAction.WS_JSON_CONNECTION_OPENED,
         module: MODULE_NAME, method: 'initialize',
@@ -115,7 +115,7 @@ export default class JsonWSConnection extends WSConnection {
 
   public onError(errorEvent: ErrorEvent): void {
     void Logging.logError({
-      tenantID: this.getTenantID(),
+      tenant: this.getTenant(),
       source: this.getChargingStationID(),
       action: ServerAction.WS_JSON_CONNECTION_ERROR,
       module: MODULE_NAME, method: 'onError',
@@ -126,7 +126,7 @@ export default class JsonWSConnection extends WSConnection {
 
   public onClose(closeEvent: CloseEvent): void {
     void Logging.logInfo({
-      tenantID: this.getTenantID(),
+      tenant: this.getTenant(),
       source: this.getChargingStationID(),
       action: ServerAction.WS_JSON_CONNECTION_CLOSED,
       module: MODULE_NAME, method: 'onClose',
@@ -137,7 +137,7 @@ export default class JsonWSConnection extends WSConnection {
 
   public async onPing(): Promise<void> {
     void Logging.logDebug({
-      tenantID: this.getTenantID(),
+      tenant: this.getTenant(),
       source: this.getChargingStationID(),
       action: ServerAction.WS_JSON_CONNECTION_PINGED,
       module: MODULE_NAME, method: 'onPing',
@@ -149,7 +149,7 @@ export default class JsonWSConnection extends WSConnection {
   public async onPong(): Promise<void> {
     this.isConnectionAlive = true;
     void Logging.logDebug({
-      tenantID: this.getTenantID(),
+      tenant: this.getTenant(),
       source: this.getChargingStationID(),
       action: ServerAction.WS_JSON_CONNECTION_PONGED,
       module: MODULE_NAME, method: 'onPong',
@@ -159,7 +159,7 @@ export default class JsonWSConnection extends WSConnection {
   }
 
   public async handleRequest(messageId: string, commandName: ServerAction, commandPayload: Record<string, unknown> | string): Promise<void> {
-    await Logging.logChargingStationServerReceiveAction(Constants.MODULE_JSON_OCPP_SERVER_16, this.getTenantID(), this.getChargingStationID(), commandName, commandPayload);
+    await Logging.logChargingStationServerReceiveAction(Constants.MODULE_JSON_OCPP_SERVER_16, this.getTenant(), this.getChargingStationID(), commandName, commandPayload);
     const methodName = `handle${commandName}`;
     // Check if method exist in the service
     if (typeof this.chargingStationService[methodName] === 'function') {
@@ -169,7 +169,7 @@ export default class JsonWSConnection extends WSConnection {
       // Call it
       const result = await this.chargingStationService[methodName](this.headers, commandPayload);
       // Log
-      await Logging.logChargingStationServerRespondAction(Constants.MODULE_JSON_OCPP_SERVER_16, this.getTenantID(), this.getChargingStationID(), commandName, result);
+      await Logging.logChargingStationServerRespondAction(Constants.MODULE_JSON_OCPP_SERVER_16, this.getTenant(), this.getChargingStationID(), commandName, result);
       // Send Response
       await this.sendMessage(messageId, result, OCPPMessageType.CALL_RESULT_MESSAGE, commandName);
     } else {
@@ -187,7 +187,7 @@ export default class JsonWSConnection extends WSConnection {
   public getChargingStationClient(): ChargingStationClient {
     if (!this.isWSConnectionOpen()) {
       void Logging.logError({
-        tenantID: this.getTenantID(),
+        tenant: this.getTenant(),
         source: this.getChargingStationID(),
         module: MODULE_NAME, method: 'getChargingStationClient',
         action: ServerAction.WS_CONNECTION,

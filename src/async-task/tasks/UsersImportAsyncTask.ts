@@ -43,7 +43,7 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
         const totalUsersToImport = await UserStorage.getImportedUsersCount(tenant);
         if (totalUsersToImport > 0) {
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.USERS_IMPORT,
             module: MODULE_NAME, method: 'processTenant',
             message: `${totalUsersToImport} User(s) are going to be imported...`
@@ -67,7 +67,7 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
               // Update it
               await UserStorage.saveImportedUser(tenant, importedUser);
               await Logging.logError({
-                tenantID: tenant.id,
+                tenant,
                 action: ServerAction.USERS_IMPORT,
                 module: MODULE_NAME, method: 'executeAsyncTask',
                 message: `Cannot import User with email '${importedUser.email}': ${error.message}`,
@@ -78,7 +78,7 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
           if (importedUsers.result.length > 0 && (result.inError + result.inSuccess) > 0) {
             const intermediateDurationSecs = Math.round((new Date().getTime() - startTime) / 1000);
             await Logging.logDebug({
-              tenantID: tenant.id,
+              tenant,
               action: ServerAction.USERS_IMPORT,
               module: MODULE_NAME, method: 'processTenant',
               message: `${result.inError + result.inSuccess}/${totalUsersToImport} User(s) have been processed in ${intermediateDurationSecs}s...`
@@ -87,7 +87,7 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
         } while (!Utils.isEmptyArray(importedUsers?.result));
         // Log final results
         const executionDurationSecs = Math.round((new Date().getTime() - startTime) / 1000);
-        await Logging.logActionsResponse(tenant.id, ServerAction.USERS_IMPORT, MODULE_NAME, 'processTenant', result,
+        await Logging.logActionsResponse(tenant, ServerAction.USERS_IMPORT, MODULE_NAME, 'processTenant', result,
           `{{inSuccess}} User(s) have been imported successfully in ${executionDurationSecs}s in Tenant ${Utils.buildTenantName(tenant)}`,
           `{{inError}} User(s) failed to be imported in ${executionDurationSecs}s in Tenant ${Utils.buildTenantName(tenant)}`,
           `{{inSuccess}} User(s) have been imported successfully but {{inError}} failed in ${executionDurationSecs}s in Tenant ${Utils.buildTenantName(tenant)}`,
@@ -95,7 +95,7 @@ export default class UsersImportAsyncTask extends AbstractAsyncTask {
         );
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.USERS_IMPORT, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.USERS_IMPORT, error);
       } finally {
         // Release the lock
         await LockingManager.release(importUsersLock);

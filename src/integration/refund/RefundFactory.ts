@@ -33,7 +33,7 @@ export default class RefundFactory {
         return refundIntegrationImpl;
       }
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.REFUND,
         module: MODULE_NAME,
         method: 'getRefundImpl',

@@ -108,7 +108,7 @@ export default abstract class AbstractOICPService {
       const endpoint = registeredEndpoints.get(endpointName);
       if (endpoint) {
         await Logging.logDebug({
-          tenantID: tenant.id,
+          tenant,
           source: Constants.CENTRAL_SERVER,
           module: MODULE_NAME, method: endpointName,
           message: `>> OICP Request ${req.method} ${req.originalUrl}`,
@@ -118,7 +118,7 @@ export default abstract class AbstractOICPService {
         const response = await endpoint.process(req, res, next, tenant);
         if (response) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             source: Constants.CENTRAL_SERVER,
             module: MODULE_NAME, method: endpointName,
             message: `<< OICP Response ${req.method} ${req.originalUrl}`,
@@ -128,7 +128,7 @@ export default abstract class AbstractOICPService {
           res.json(response);
         } else {
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: Constants.CENTRAL_SERVER,
             module: MODULE_NAME, method: endpointName,
             message: `<< OICP Endpoint ${req.method} ${req.originalUrl} not implemented`,
@@ -148,14 +148,14 @@ export default abstract class AbstractOICPService {
       }
     } catch (error) {
       await Logging.logError({
-        tenantID: req.user && req.user.tenantID ? req.user.tenantID : Constants.DEFAULT_TENANT,
+        tenant: req.tenant ? req.tenant : Constants.DEFAULT_TENANT_OBJECT,
         source: Constants.CENTRAL_SERVER,
         module: MODULE_NAME, method: endpointName,
         message: `<< OICP Response Error ${req.method} ${req.originalUrl}`,
         action: ServerAction.OICP_ENDPOINT,
         detailedMessages: { error: error.stack }
       });
-      await Logging.logActionExceptionMessage(req.user && req.user.tenantID ? req.user.tenantID : Constants.DEFAULT_TENANT, ServerAction.OICP_ENDPOINT, error);
+      await Logging.logActionExceptionMessage(req.tenant ? req.tenant : Constants.DEFAULT_TENANT_OBJECT, ServerAction.OICP_ENDPOINT, error);
       let errorCode: any = {};
       if (error instanceof AppError || error instanceof AppAuthError) {
         errorCode = error.params.errorCode;

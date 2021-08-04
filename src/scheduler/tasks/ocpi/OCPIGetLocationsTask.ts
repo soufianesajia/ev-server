@@ -31,7 +31,7 @@ export default class OCPIGetLocationsTask extends SchedulerTask {
       }
     } catch (error) {
       // Log error
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_PULL_LOCATIONS, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_PULL_LOCATIONS, error);
     }
   }
 
@@ -43,7 +43,7 @@ export default class OCPIGetLocationsTask extends SchedulerTask {
         // Check if OCPI endpoint is registered
         if (ocpiEndpoint.status !== OCPIRegistrationStatus.REGISTERED) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.OCPI_PULL_LOCATIONS,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is not registered. Skipping the OCPI endpoint.`
@@ -52,7 +52,7 @@ export default class OCPIGetLocationsTask extends SchedulerTask {
         }
         if (!ocpiEndpoint.backgroundPatchJob) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.OCPI_PULL_LOCATIONS,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is inactive.`
@@ -60,7 +60,7 @@ export default class OCPIGetLocationsTask extends SchedulerTask {
           return;
         }
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           action: ServerAction.OCPI_PULL_LOCATIONS,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           message: `The get Locations process for endpoint '${ocpiEndpoint.name}' is being processed`
@@ -70,7 +70,7 @@ export default class OCPIGetLocationsTask extends SchedulerTask {
         // Send EVSE statuses
         const result = await ocpiClient.pullLocations(config.partial);
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           action: ServerAction.OCPI_PULL_LOCATIONS,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           message: `The get Locations process for endpoint '${ocpiEndpoint.name}' is completed`,
@@ -78,7 +78,7 @@ export default class OCPIGetLocationsTask extends SchedulerTask {
         });
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_PULL_LOCATIONS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_PULL_LOCATIONS, error);
       } finally {
         // Release the lock
         await LockingManager.release(ocpiLock);

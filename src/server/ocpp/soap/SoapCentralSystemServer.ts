@@ -91,7 +91,7 @@ export default class SoapCentralSystemServer extends CentralSystemServer {
   private async handleSoapServerMessage(ocppVersion: OCPPVersion, request: any, methodName: string) {
     // Log
     await Logging.logDebug({
-      tenantID: Constants.DEFAULT_TENANT, module: MODULE_NAME,
+      tenant: Constants.DEFAULT_TENANT_OBJECT, module: MODULE_NAME,
       method: 'handleSoapServerMessage',
       action: ServerAction.EXPRESS_SERVER,
       message: `>> OCPP ${ocppVersion} Request '${methodName}' Received`,
@@ -104,7 +104,7 @@ export default class SoapCentralSystemServer extends CentralSystemServer {
     if (type === 'replied') {
       // Log
       await Logging.logDebug({
-        tenantID: Constants.DEFAULT_TENANT, module: MODULE_NAME,
+        tenant: Constants.DEFAULT_TENANT_OBJECT, module: MODULE_NAME,
         method: 'handleSoapServerLog',
         action: ServerAction.EXPRESS_SERVER,
         message: `<< OCPP ${ocppVersion} Request Sent`,

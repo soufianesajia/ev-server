@@ -208,7 +208,7 @@ export default abstract class AbstractOCPIService {
       const endpoint = registeredEndpoints.get(action);
       if (endpoint) {
         await Logging.logDebug({
-          tenantID: tenant.id,
+          tenant,
           source: Constants.CENTRAL_SERVER,
           module: MODULE_NAME, method: action,
           message: `>> OCPI Request ${req.method} ${req.originalUrl}`,
@@ -218,7 +218,7 @@ export default abstract class AbstractOCPIService {
         const response = await endpoint.process(req, res, next, tenant, ocpiEndpoint);
         if (response) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             source: Constants.CENTRAL_SERVER,
             module: MODULE_NAME, method: action,
             message: `<< OCPI Response ${req.method} ${req.originalUrl}`,
@@ -228,7 +228,7 @@ export default abstract class AbstractOCPIService {
           res.json(response);
         } else {
           await Logging.logWarning({
-            tenantID: tenant.id,
+            tenant,
             source: Constants.CENTRAL_SERVER,
             module: MODULE_NAME, method: action,
             message: `<< OCPI Endpoint ${req.method} ${req.originalUrl} not implemented`,
@@ -248,14 +248,14 @@ export default abstract class AbstractOCPIService {
       }
     } catch (error) {
       await Logging.logError({
-        tenantID: req.user && req.user.tenantID ? req.user.tenantID : Constants.DEFAULT_TENANT,
+        tenant: req.tenant ? req.tenant : Constants.DEFAULT_TENANT_OBJECT,
         source: Constants.CENTRAL_SERVER,
         module: MODULE_NAME, method: action,
         message: `<< OCPI Response Error ${req.method} ${req.originalUrl}`,
         action: ServerAction.OCPI_ENDPOINT,
         detailedMessages: { error: error.stack }
       });
-      await Logging.logActionExceptionMessage(req.user && req.user.tenantID ? req.user.tenantID : Constants.DEFAULT_TENANT, ServerAction.OCPI_ENDPOINT, error);
+      await Logging.logActionExceptionMessage(req.tenant ? req.tenant : Constants.DEFAULT_TENANT_OBJECT, ServerAction.OCPI_ENDPOINT, error);
       let errorCode: any = {};
       if (error instanceof AppError || error instanceof AppAuthError) {
         errorCode = error.params.errorCode;

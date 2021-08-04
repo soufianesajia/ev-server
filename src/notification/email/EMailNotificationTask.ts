@@ -187,7 +187,7 @@ export default class EMailNotificationTask implements NotificationTask {
     if (!this.smtpMainClientInstance) {
       // No suitable main SMTP server configuration found to send the email
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: Utils.objectHasProperty(data, 'chargeBoxID') && data.chargeBoxID,
         action: ServerAction.EMAIL_NOTIFICATION,
         module: MODULE_NAME, method: 'sendEmail',
@@ -199,7 +199,7 @@ export default class EMailNotificationTask implements NotificationTask {
     if (useSmtpClientBackup && !this.smtpBackupClientInstance) {
     // No suitable backup SMTP server configuration found or activated to send the email
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: Utils.objectHasProperty(data, 'chargeBoxID') && data.chargeBoxID,
         action: ServerAction.EMAIL_NOTIFICATION,
         module: MODULE_NAME, method: 'sendEmail',
@@ -227,7 +227,7 @@ export default class EMailNotificationTask implements NotificationTask {
       const messageSent: Message = await smtpClient.sendAsync(messageToSend);
       // Email sent successfully
       await Logging.logDebug({
-        tenantID: tenant.id ? tenant.id : Constants.DEFAULT_TENANT,
+        tenant: tenant ? tenant : Constants.DEFAULT_TENANT_OBJECT,
         source: Utils.objectHasProperty(data, 'chargeBoxID') && data.chargeBoxID,
         action: ServerAction.EMAIL_NOTIFICATION,
         module: MODULE_NAME, method: 'sendEmail',
@@ -243,7 +243,7 @@ export default class EMailNotificationTask implements NotificationTask {
     } catch (error) {
       try {
         await Logging.logError({
-          tenantID: tenant.id ? tenant.id : Constants.DEFAULT_TENANT,
+          tenant: tenant ? tenant : Constants.DEFAULT_TENANT_OBJECT,
           source: Utils.objectHasProperty(data, 'chargeBoxID') && data.chargeBoxID,
           action: ServerAction.EMAIL_NOTIFICATION,
           module: MODULE_NAME, method: 'sendEmail',
@@ -417,7 +417,7 @@ export default class EMailNotificationTask implements NotificationTask {
       }, data, tenant, user, severity, useSmtpClientBackup);
     } catch (error) {
       await Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: Utils.objectHasProperty(data, 'chargeBoxID') && data.chargeBoxID,
         action: ServerAction.EMAIL_NOTIFICATION,
         module: MODULE_NAME, method: 'prepareAndSendEmail',

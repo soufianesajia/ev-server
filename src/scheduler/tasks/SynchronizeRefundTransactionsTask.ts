@@ -18,7 +18,7 @@ export default class SynchronizeRefundTransactionsTask extends SchedulerTask {
   async processTenant(tenant: Tenant, config: TaskConfig): Promise<void> {
     if (!Utils.isTenantComponentActive(tenant, TenantComponents.REFUND)) {
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.SYNCHRONIZE_REFUND,
         module: MODULE_NAME, method: 'run',
         message: 'Refund not active in this Tenant'
@@ -29,7 +29,7 @@ export default class SynchronizeRefundTransactionsTask extends SchedulerTask {
     const refundConnector = await RefundFactory.getRefundImpl(tenant);
     if (!refundConnector) {
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         action: ServerAction.SYNCHRONIZE_REFUND,
         module: MODULE_NAME, method: 'run',
         message: 'Refund settings are not configured'
@@ -48,7 +48,7 @@ export default class SynchronizeRefundTransactionsTask extends SchedulerTask {
         if (!Utils.isEmptyArray(transactions.result)) {
           // Process them
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.SYNCHRONIZE_REFUND,
             module: MODULE_NAME, method: 'processTenant',
             message: `${transactions.count} Refunded Transaction(s) are going to be synchronized`
@@ -75,12 +75,12 @@ export default class SynchronizeRefundTransactionsTask extends SchedulerTask {
               }
             } catch (error) {
               actionsDone.error++;
-              await Logging.logActionExceptionMessage(tenant.id, ServerAction.SYNCHRONIZE_REFUND, error);
+              await Logging.logActionExceptionMessage(tenant, ServerAction.SYNCHRONIZE_REFUND, error);
             }
           }
           // Log result
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.SYNCHRONIZE_REFUND,
             module: MODULE_NAME, method: 'processTenant',
             message: `Synchronized: ${actionsDone.approved} Approved, ${actionsDone.cancelled} Cancelled, ${actionsDone.notUpdated} Not updated, ${actionsDone.error} In Error`
@@ -88,7 +88,7 @@ export default class SynchronizeRefundTransactionsTask extends SchedulerTask {
         } else {
           // Process them
           await Logging.logInfo({
-            tenantID: tenant.id,
+            tenant,
             action: ServerAction.SYNCHRONIZE_REFUND,
             module: MODULE_NAME, method: 'processTenant',
             message: 'No Refunded Transaction found to synchronize'
@@ -96,7 +96,7 @@ export default class SynchronizeRefundTransactionsTask extends SchedulerTask {
         }
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.SYNCHRONIZE_REFUND, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.SYNCHRONIZE_REFUND, error);
       } finally {
         // Release the lock
         await LockingManager.release(refundLock);

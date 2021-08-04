@@ -37,7 +37,7 @@ export default abstract class WSConnection {
     this.initialized = false;
     this.wsServer = wsServer;
     void Logging.logDebug({
-      tenantID: Constants.DEFAULT_TENANT,
+      tenant: Constants.DEFAULT_TENANT_OBJECT,
       action: ServerAction.WS_CONNECTION_OPENED,
       module: MODULE_NAME, method: 'constructor',
       message: `WS connection opening attempts with URL: '${req.url}'`,
@@ -83,7 +83,7 @@ export default abstract class WSConnection {
       action = ServerAction.WS_JSON_CONNECTION_OPENED;
     }
     void Logging.logDebug({
-      tenantID: this.tenantID,
+      tenant: this.tenant,
       source: this.chargingStationID,
       action: action,
       module: MODULE_NAME, method: 'constructor',
@@ -102,7 +102,7 @@ export default abstract class WSConnection {
         ServerAction.WS_CONNECTION,
         Constants.CENTRAL_SERVER,
         MODULE_NAME, 'constructor',
-        this.tenantID
+        this.tenant
       );
       throw backendError;
     }
@@ -120,7 +120,7 @@ export default abstract class WSConnection {
       this.tenant = await DatabaseUtils.checkTenant(this.tenantID);
     } catch (error) {
       // Custom Error
-      await Logging.logException(error, ServerAction.WS_CONNECTION, this.getChargingStationID(), 'WSConnection', 'initialize', this.tenantID);
+      await Logging.logException(error, ServerAction.WS_CONNECTION, this.getChargingStationID(), 'WSConnection', 'initialize', this.tenant);
       throw new BackendError({
         source: this.getChargingStationID(),
         action: ServerAction.WS_CONNECTION,
@@ -178,7 +178,7 @@ export default abstract class WSConnection {
         case OCPPMessageType.CALL_ERROR_MESSAGE:
           // Log
           await Logging.logError({
-            tenantID: this.getTenantID(),
+            tenant: this.getTenant(),
             module: MODULE_NAME,
             method: 'onMessage',
             action: commandName,
@@ -229,7 +229,7 @@ export default abstract class WSConnection {
       }
     } catch (error) {
       // Log
-      await Logging.logException(error, commandName, this.getChargingStationID(), MODULE_NAME, 'onMessage', this.getTenantID());
+      await Logging.logException(error, commandName, this.getChargingStationID(), MODULE_NAME, 'onMessage', this.getTenant());
       // Send error
       await this.sendError(messageId, error);
     }

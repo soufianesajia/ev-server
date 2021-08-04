@@ -68,7 +68,7 @@ export default class CentralRestServer {
     // Log
     const logMsg = `Starting REST SocketIO Server ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master'}...`;
     await Logging.logInfo({
-      tenantID: Constants.DEFAULT_TENANT,
+      tenant: Constants.DEFAULT_TENANT_OBJECT,
       module: MODULE_NAME, method: 'startSocketIO',
       action: ServerAction.STARTUP,
       message: logMsg
@@ -92,7 +92,7 @@ export default class CentralRestServer {
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     CentralRestServer.socketIOServer.on('connect', async (socket: Socket): Promise<void> => {
       await Logging.logDebug({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         module: MODULE_NAME, method: 'startSocketIO',
         action: ServerAction.SOCKET_IO,
         message: 'SocketIO client is trying to connect from ' + socket.handshake.headers['origin'],
@@ -102,7 +102,7 @@ export default class CentralRestServer {
       if (!userToken || !userToken['logged_in']) {
         CentralRestServer.centralSystemRestConfig.debug && console.error(chalk.red('SocketIO client is trying to connect without token from ' + socket.handshake.headers['origin']));
         await Logging.logWarning({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           module: MODULE_NAME, method: 'startSocketIO',
           action: ServerAction.SOCKET_IO,
           message: 'SocketIO client is trying to connect without token from ' + socket.handshake.headers['origin'],

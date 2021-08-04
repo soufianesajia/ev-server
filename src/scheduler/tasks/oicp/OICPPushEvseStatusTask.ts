@@ -31,7 +31,7 @@ export default class OICPPushEvseStatusTask extends SchedulerTask {
       }
     } catch (error) {
       // Log error
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.OICP_PUSH_EVSE_STATUSES, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.OICP_PUSH_EVSE_STATUSES, error);
     }
   }
 
@@ -43,7 +43,7 @@ export default class OICPPushEvseStatusTask extends SchedulerTask {
         // Check if OICP endpoint is registered
         if (oicpEndpoint.status !== OICPRegistrationStatus.REGISTERED) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOICPEndpoint',
             action: ServerAction.OICP_PUSH_EVSE_STATUSES,
             message: `The OICP Endpoint ${oicpEndpoint.name} is not registered. Skipping the OICP endpoint.`
@@ -52,7 +52,7 @@ export default class OICPPushEvseStatusTask extends SchedulerTask {
         }
         if (!oicpEndpoint.backgroundPatchJob) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOICPEndpoint',
             action: ServerAction.OICP_PUSH_EVSE_STATUSES,
             message: `The OICP Background Job for Endpoint ${oicpEndpoint.name} is inactive.`
@@ -60,7 +60,7 @@ export default class OICPPushEvseStatusTask extends SchedulerTask {
           return;
         }
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOICPEndpoint',
           action: ServerAction.OICP_PUSH_EVSE_STATUSES,
           message: `The push EVSE Statuses process for endpoint ${oicpEndpoint.name} is being processed`
@@ -70,14 +70,14 @@ export default class OICPPushEvseStatusTask extends SchedulerTask {
         // Send EVSE statuses
         const sendEVSEStatusResult = await oicpClient.sendEVSEStatuses(!Utils.isUndefined(config.processAllEVSEs) ? config.processAllEVSEs : false);
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOICPEndpoint',
           action: ServerAction.OICP_PUSH_EVSE_STATUSES,
           message: `The push EVSE Statuses process for endpoint ${oicpEndpoint.name} is completed (Success: ${sendEVSEStatusResult.success}/Failure: ${sendEVSEStatusResult.failure})`
         });
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OICP_PUSH_EVSE_STATUSES, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OICP_PUSH_EVSE_STATUSES, error);
       } finally {
         // Release the lock
         await LockingManager.release(oicpLock);

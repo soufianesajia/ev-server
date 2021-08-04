@@ -30,7 +30,7 @@ export default class OCPICheckLocationsTask extends SchedulerTask {
       }
     } catch (error) {
       // Log error
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_CHECK_SESSIONS, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_CHECK_SESSIONS, error);
     }
   }
 
@@ -42,7 +42,7 @@ export default class OCPICheckLocationsTask extends SchedulerTask {
         // Check if OCPI endpoint is registered
         if (ocpiEndpoint.status !== OCPIRegistrationStatus.REGISTERED) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             action: ServerAction.OCPI_CHECK_SESSIONS,
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is not registered. Skipping the OCPI endpoint.`
@@ -51,7 +51,7 @@ export default class OCPICheckLocationsTask extends SchedulerTask {
         }
         if (!ocpiEndpoint.backgroundPatchJob) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             action: ServerAction.OCPI_CHECK_SESSIONS,
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is inactive.`
@@ -59,7 +59,7 @@ export default class OCPICheckLocationsTask extends SchedulerTask {
           return;
         }
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           action: ServerAction.OCPI_CHECK_SESSIONS,
           message: `The check locations process for endpoint '${ocpiEndpoint.name}' is being processed`
@@ -68,7 +68,7 @@ export default class OCPICheckLocationsTask extends SchedulerTask {
         const ocpiClient = await OCPIClientFactory.getCpoOcpiClient(tenant, ocpiEndpoint);
         const result = await ocpiClient.checkLocations();
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           action: ServerAction.OCPI_CHECK_SESSIONS,
           message: `The check locations process for endpoint '${ocpiEndpoint.name}' is completed`,
@@ -76,7 +76,7 @@ export default class OCPICheckLocationsTask extends SchedulerTask {
         });
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_CHECK_LOCATIONS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_CHECK_LOCATIONS, error);
       } finally {
         // Release the lock
         await LockingManager.release(ocpiLock);

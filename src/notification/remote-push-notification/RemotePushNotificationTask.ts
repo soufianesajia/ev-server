@@ -33,7 +33,7 @@ export default class RemotePushNotificationTask implements NotificationTask {
         this.initialized = true;
       } catch (error) {
         void Logging.logError({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           action: ServerAction.REMOTE_PUSH_NOTIFICATION,
           module: MODULE_NAME, method: 'constructor',
           message: `Error initializing Firebase: '${error.message}'`,
@@ -452,7 +452,7 @@ export default class RemotePushNotificationTask implements NotificationTask {
     }
     if (!user || !user.mobileToken || user.mobileToken.length === 0) {
       await Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         source: (data && Utils.objectHasProperty(data, 'chargeBoxID') ? data['chargeBoxID'] : null),
         action: ServerAction.REMOTE_PUSH_NOTIFICATION,
         module: MODULE_NAME, method: 'sendRemotePushNotificationToUsers',
@@ -473,7 +473,7 @@ export default class RemotePushNotificationTask implements NotificationTask {
     ).then((response) => {
       // Response is a message ID string.
       void Logging.logDebug({
-        tenantID: tenant.id,
+        tenant,
         source: (data && Utils.objectHasProperty(data, 'chargeBoxID') ? data['chargeBoxID'] : null),
         action: ServerAction.REMOTE_PUSH_NOTIFICATION,
         module: MODULE_NAME, method: 'sendRemotePushNotificationToUsers',
@@ -483,7 +483,7 @@ export default class RemotePushNotificationTask implements NotificationTask {
       });
     }).catch((error: Error) => {
       void Logging.logError({
-        tenantID: tenant.id,
+        tenant,
         source: (data && Utils.objectHasProperty(data, 'chargeBoxID') ? data['chargeBoxID'] : null),
         action: ServerAction.REMOTE_PUSH_NOTIFICATION,
         module: MODULE_NAME, method: 'sendRemotePushNotificationToUsers',

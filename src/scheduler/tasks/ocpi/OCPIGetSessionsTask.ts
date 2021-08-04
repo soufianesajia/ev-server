@@ -30,7 +30,7 @@ export default class OCPIGetSessionsTask extends SchedulerTask {
       }
     } catch (error) {
       // Log error
-      await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_PULL_SESSIONS, error);
+      await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_PULL_SESSIONS, error);
     }
   }
 
@@ -42,7 +42,7 @@ export default class OCPIGetSessionsTask extends SchedulerTask {
         // Check if OCPI endpoint is registered
         if (ocpiEndpoint.status !== OCPIRegistrationStatus.REGISTERED) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             action: ServerAction.OCPI_PULL_SESSIONS,
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is not registered. Skipping the OCPI endpoint.`
@@ -51,7 +51,7 @@ export default class OCPIGetSessionsTask extends SchedulerTask {
         }
         if (!ocpiEndpoint.backgroundPatchJob) {
           await Logging.logDebug({
-            tenantID: tenant.id,
+            tenant,
             module: MODULE_NAME, method: 'processOCPIEndpoint',
             action: ServerAction.OCPI_PULL_SESSIONS,
             message: `The OCPI endpoint '${ocpiEndpoint.name}' is inactive.`
@@ -59,7 +59,7 @@ export default class OCPIGetSessionsTask extends SchedulerTask {
           return;
         }
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           action: ServerAction.OCPI_PULL_SESSIONS,
           message: `The get sessions process for endpoint '${ocpiEndpoint.name}' is being processed`
@@ -69,7 +69,7 @@ export default class OCPIGetSessionsTask extends SchedulerTask {
         // Send EVSE statuses
         const result = await ocpiClient.pullSessions();
         await Logging.logInfo({
-          tenantID: tenant.id,
+          tenant,
           module: MODULE_NAME, method: 'processOCPIEndpoint',
           action: ServerAction.OCPI_PULL_SESSIONS,
           message: `The get sessions process for endpoint '${ocpiEndpoint.name}' is completed`,

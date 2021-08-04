@@ -45,7 +45,7 @@ export default class AsyncTaskManager {
     // Active?
     if (AsyncTaskManager.asyncTaskConfig?.active) {
       await Logging.logDebug({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.ASYNC_TASK,
         module: MODULE_NAME, method: 'handleAsyncTasks',
         message: 'Checking asynchronous task to process...'
@@ -66,7 +66,7 @@ export default class AsyncTaskManager {
       // Process them
       if (!Utils.isEmptyArray(asyncTasks.result)) {
         await Logging.logInfo({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           action: ServerAction.ASYNC_TASK,
           module: MODULE_NAME, method: 'handleAsyncTasks',
           message: `${asyncTasks.result.length} asynchronous task(s) are going to be processed...`
@@ -117,7 +117,7 @@ export default class AsyncTaskManager {
                 break;
               default:
                 await Logging.logError({
-                  tenantID: Constants.DEFAULT_TENANT,
+                  tenant: Constants.DEFAULT_TENANT_OBJECT,
                   action: ServerAction.ASYNC_TASK,
                   module: MODULE_NAME, method: 'handleAsyncTasks',
                   message: `The asynchronous task '${asyncTask.name}' is unknown`
@@ -137,7 +137,7 @@ export default class AsyncTaskManager {
                   await AsyncTaskStorage.saveAsyncTask(asyncTask);
                   // Log
                   await Logging.logInfo({
-                    tenantID: Constants.DEFAULT_TENANT,
+                    tenant: Constants.DEFAULT_TENANT_OBJECT,
                     action: ServerAction.ASYNC_TASK,
                     module: MODULE_NAME, method: 'handleAsyncTasks',
                     message: `The asynchronous task '${asyncTask.name}' is running...`
@@ -154,7 +154,7 @@ export default class AsyncTaskManager {
                   processedTask.inSuccess++;
                   // Log
                   await Logging.logInfo({
-                    tenantID: Constants.DEFAULT_TENANT,
+                    tenant: Constants.DEFAULT_TENANT_OBJECT,
                     action: ServerAction.ASYNC_TASK,
                     module: MODULE_NAME, method: 'handleAsyncTasks',
                     message: `The asynchronous task '${asyncTask.name}' has been processed in ${asyncTaskTotalDurationSecs} secs`
@@ -169,7 +169,7 @@ export default class AsyncTaskManager {
                   await AsyncTaskStorage.saveAsyncTask(asyncTask);
                   // Log error
                   await Logging.logError({
-                    tenantID: Constants.DEFAULT_TENANT,
+                    tenant: Constants.DEFAULT_TENANT_OBJECT,
                     module: MODULE_NAME, method: 'handleAsyncTasks',
                     action: ServerAction.ASYNC_TASK,
                     message: `Error while running the asynchronous task '${asyncTask.name}': ${error.message}`,
@@ -185,7 +185,7 @@ export default class AsyncTaskManager {
           { concurrency: nbrTasksInParallel });
         // Log result
         const totalDurationSecs = Utils.truncTo((new Date().getTime() - startTime) / 1000, 2);
-        void Logging.logActionsResponse(Constants.DEFAULT_TENANT, ServerAction.ASYNC_TASK,
+        void Logging.logActionsResponse(Constants.DEFAULT_TENANT_OBJECT, ServerAction.ASYNC_TASK,
           MODULE_NAME, 'handleAsyncTasks', processedTask,
           `{{inSuccess}} asynchronous task(s) were successfully processed in ${totalDurationSecs} secs`,
           `{{inError}} asynchronous task(s) failed to be processed in ${totalDurationSecs} secs`,
@@ -194,7 +194,7 @@ export default class AsyncTaskManager {
         );
       } else {
         await Logging.logInfo({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           action: ServerAction.ASYNC_TASK,
           module: MODULE_NAME, method: 'handleAsyncTasks',
           message: 'No asynchronous task to process'
@@ -222,7 +222,7 @@ export default class AsyncTaskManager {
     await AsyncTaskStorage.saveAsyncTask(asyncTask as AsyncTask);
     // Log
     await Logging.logInfo({
-      tenantID: Constants.DEFAULT_TENANT,
+      tenant: Constants.DEFAULT_TENANT_OBJECT,
       action: ServerAction.ASYNC_TASK,
       module: MODULE_NAME, method: 'createAndSaveAsyncTasks',
       message: `The asynchronous task '${asyncTask.name}' has been saved successfully and will be processed soon`
