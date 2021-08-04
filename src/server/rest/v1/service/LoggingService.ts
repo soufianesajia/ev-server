@@ -44,7 +44,7 @@ export default class LoggingService {
       });
     }
     // Get Log
-    const logging = await LoggingStorage.getLog(req.user.tenantID, filteredRequest.ID, [
+    const logging = await LoggingStorage.getLog(req.tenant, filteredRequest.ID, [
       'id', 'level', 'timestamp', 'type', 'source', 'host', 'process', 'action', 'message',
       'user.name', 'user.firstName', 'actionOnUser.name', 'actionOnUser.firstName', 'hasDetailedMessages', 'detailedMessages'
     ]);
@@ -125,7 +125,7 @@ export default class LoggingService {
       }
     }
     // Get logs
-    const loggings = await LoggingStorage.getLogs(req.user.tenantID, {
+    const loggings = await LoggingStorage.getLogs(req.tenant, {
       search: filteredRequest.Search,
       startDateTime: filteredRequest.StartDateTime,
       endDateTime: filteredRequest.EndDateTime,

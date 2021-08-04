@@ -1,9 +1,10 @@
 import { ServerAction } from './Server';
+import Tenant from './Tenant';
 import User from './User';
 import UserToken from './UserToken';
 
 export interface Log {
-  tenantID: string;
+  tenant: Tenant;
   id?: string;
   level?: LogLevel;
   source?: string;
