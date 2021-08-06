@@ -1,12 +1,13 @@
 import CreatedUpdatedProps from './CreatedUpdatedProps';
 import { ServerAction } from './Server';
+import Tenant from './Tenant';
 
 export default interface AsyncTask extends CreatedUpdatedProps {
   id: string;
   name: AsyncTasks;
   action: ServerAction;
   type: AsyncTaskType;
-  tenantID?: string;
+  tenant?: Tenant;
   status?: AsyncTaskStatus;
   parent?: string;
   execHost?: string;

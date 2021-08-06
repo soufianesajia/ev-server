@@ -160,7 +160,7 @@ export default class Cypher {
 
   // This method will be reused in a Scheduler task that resumes migration
   public static async handleCryptoSettingsChange(tenant: Tenant): Promise<void> {
-    const createDatabaseLock = LockingManager.createExclusiveLock(tenant.id, LockEntity.DATABASE, 'migrate-settings-sensitive-data');
+    const createDatabaseLock = LockingManager.createExclusiveLock(tenant, LockEntity.DATABASE, 'migrate-settings-sensitive-data');
     if (await LockingManager.acquire(createDatabaseLock)) {
       try {
         // Get the crypto key

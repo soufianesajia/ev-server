@@ -16,7 +16,7 @@ export default abstract class AbstractAsyncTask {
   public async run(): Promise<void> {
     const startTime = moment();
     await Logging.logInfo({
-      tenantID: Constants.DEFAULT_TENANT,
+      tenant: Constants.DEFAULT_TENANT_OBJECT,
       action: ServerAction.ASYNC_TASK,
       module: MODULE_NAME, method: 'run',
       message: `The async task '${this.asyncTask.name}' is running...`
@@ -26,7 +26,7 @@ export default abstract class AbstractAsyncTask {
     // Log Total Processing Time
     const totalMigrationTimeSecs = moment.duration(moment().diff(startTime)).asSeconds();
     await Logging.logInfo({
-      tenantID: Constants.DEFAULT_TENANT,
+      tenant: Constants.DEFAULT_TENANT_OBJECT,
       action: ServerAction.SCHEDULER,
       module: MODULE_NAME, method: 'run',
       message: `The task '${this.asyncTask.name}' has been run in ${totalMigrationTimeSecs} secs`

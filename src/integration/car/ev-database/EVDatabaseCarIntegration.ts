@@ -17,14 +17,14 @@ export default class EVDatabaseCarIntegration extends CarIntegration {
 
   constructor() {
     super();
-    this.axiosInstance = AxiosFactory.getAxiosInstance(Constants.DEFAULT_TENANT);
+    this.axiosInstance = AxiosFactory.getAxiosInstance(Constants.DEFAULT_TENANT_OBJECT);
   }
 
   public async getCarCatalogs(): Promise<CarCatalog[]> {
     const evDatabaseConfig = Configuration.getEVDatabaseConfig();
     if (!evDatabaseConfig) {
       await Logging.logWarning({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         source: Constants.CENTRAL_SERVER,
         message: 'No configuration is provided to access the EVDatabase system, skipping',
         module: MODULE_NAME, method: 'getCarCatalogs',
@@ -221,7 +221,7 @@ export default class EVDatabaseCarIntegration extends CarIntegration {
         image = 'data:' + response.headers['content-type'] + ';base64,' + base64Image;
       } catch (error) {
         await Logging.logError({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.SYNCHRONIZE_CAR_CATALOGS,
           module: MODULE_NAME, method: 'getCarCatalogThumb',
@@ -241,7 +241,7 @@ export default class EVDatabaseCarIntegration extends CarIntegration {
       return encodedImage;
     } catch (error) {
       await Logging.logError({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.SYNCHRONIZE_CAR_CATALOGS,
         module: MODULE_NAME, method: 'getCarCatalogImage',

@@ -20,7 +20,7 @@ export default class OCPICheckLocationsAsyncTask extends AbstractAsyncTask {
         if (!ocpiEndpoint) {
           throw new Error(`Unknown OCPI Endpoint ID '${this.asyncTask.parameters.endpointID}'`);
         }
-        const checkLocationsLock = await LockingHelper.createOCPICheckLocationsLock(tenant.id, ocpiEndpoint);
+        const checkLocationsLock = await LockingHelper.createOCPICheckLocationsLock(tenant, ocpiEndpoint);
         if (checkLocationsLock) {
           try {
             // Get the OCPI Client
@@ -35,7 +35,7 @@ export default class OCPICheckLocationsAsyncTask extends AbstractAsyncTask {
           }
         }
       } catch (error) {
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_CHECK_LOCATIONS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_CHECK_LOCATIONS, error);
       }
     }
   }

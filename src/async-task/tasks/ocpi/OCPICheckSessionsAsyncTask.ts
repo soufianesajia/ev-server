@@ -20,7 +20,7 @@ export default class OCPICheckSessionsAsyncTask extends AbstractAsyncTask {
         if (!ocpiEndpoint) {
           throw new Error(`Unknown OCPI Endpoint ID '${this.asyncTask.parameters.endpointID}'`);
         }
-        const checkSessionsLock = await LockingHelper.createOCPICheckSessionsLock(tenant.id, ocpiEndpoint);
+        const checkSessionsLock = await LockingHelper.createOCPICheckSessionsLock(tenant, ocpiEndpoint);
         if (checkSessionsLock) {
           try {
             // Get the OCPI Client
@@ -35,7 +35,7 @@ export default class OCPICheckSessionsAsyncTask extends AbstractAsyncTask {
           }
         }
       } catch (error) {
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_CHECK_SESSIONS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_CHECK_SESSIONS, error);
       }
     }
   }

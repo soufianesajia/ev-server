@@ -20,7 +20,7 @@ export default class OCPIPushEVSEStatusesAsyncTask extends AbstractAsyncTask {
         if (!ocpiEndpoint) {
           throw new Error(`Unknown OCPI Endpoint ID '${this.asyncTask.parameters.endpointID}'`);
         }
-        const patchStatusesLock = await LockingHelper.createOCPIPatchEVSEStatusesLock(tenant.id, ocpiEndpoint);
+        const patchStatusesLock = await LockingHelper.createOCPIPatchEVSEStatusesLock(tenant, ocpiEndpoint);
         if (patchStatusesLock) {
           try {
             // Get the OCPI Client
@@ -35,7 +35,7 @@ export default class OCPIPushEVSEStatusesAsyncTask extends AbstractAsyncTask {
           }
         }
       } catch (error) {
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_PATCH_STATUS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_PATCH_STATUS, error);
       }
     }
   }

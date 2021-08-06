@@ -33,7 +33,7 @@ export default abstract class OCPIClient {
         module: MODULE_NAME, method: 'constructor',
       });
     }
-    this.axiosInstance = AxiosFactory.getAxiosInstance(tenant.id);
+    this.axiosInstance = AxiosFactory.getAxiosInstance(tenant);
     this.tenant = tenant;
     this.settings = settings;
     this.ocpiEndpoint = ocpiEndpoint;
@@ -121,7 +121,7 @@ export default abstract class OCPIClient {
 
   public async getVersions(): Promise<OCPIVersion[]> {
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_GET_VERSIONS,
       message: `Get OCPI Versions at ${this.ocpiEndpoint.baseUrl}`,
       module: MODULE_NAME, method: 'getServices'
@@ -136,7 +136,7 @@ export default abstract class OCPIClient {
 
   public async getEndpointVersions(): Promise<OCPIEndpointVersions> {
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_GET_ENDPOINT_VERSIONS,
       message: `Get OCPI Services at ${this.ocpiEndpoint.versionUrl}`,
       module: MODULE_NAME, method: 'getServices'
@@ -153,7 +153,7 @@ export default abstract class OCPIClient {
     // Get credentials url
     const credentialsUrl = this.getEndpointUrl('credentials', ServerAction.OCPI_POST_CREDENTIALS);
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_POST_CREDENTIALS,
       message: `Delete Credentials at ${credentialsUrl}`,
       module: MODULE_NAME, method: 'postCredentials'
@@ -174,7 +174,7 @@ export default abstract class OCPIClient {
     const credentialsUrl = this.getEndpointUrl('credentials', ServerAction.OCPI_POST_CREDENTIALS);
     const credentials = await OCPIUtilsService.buildOCPICredentialObject(this.tenant, this.ocpiEndpoint.localToken, this.ocpiEndpoint.role);
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       action: ServerAction.OCPI_POST_CREDENTIALS,
       message: `Post Credentials at ${credentialsUrl}`,
       module: MODULE_NAME, method: 'postCredentials',

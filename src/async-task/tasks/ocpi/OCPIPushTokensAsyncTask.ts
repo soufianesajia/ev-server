@@ -20,7 +20,7 @@ export default class OCPIPushTokensAsyncTask extends AbstractAsyncTask {
         if (!ocpiEndpoint) {
           throw new Error(`Unknown OCPI Endpoint ID '${this.asyncTask.parameters.endpointID}'`);
         }
-        const pushTokensLock = await LockingHelper.createOCPIPushTokensLock(tenant.id, ocpiEndpoint);
+        const pushTokensLock = await LockingHelper.createOCPIPushTokensLock(tenant, ocpiEndpoint);
         if (pushTokensLock) {
           try {
             // Get the OCPI Client
@@ -36,7 +36,7 @@ export default class OCPIPushTokensAsyncTask extends AbstractAsyncTask {
           }
         }
       } catch (error) {
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.OCPI_PUSH_TOKENS, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.OCPI_PUSH_TOKENS, error);
       }
     }
   }

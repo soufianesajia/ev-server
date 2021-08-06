@@ -11,7 +11,7 @@ const MODULE_NAME = 'SynchronizeCarCatalogsAsyncTask';
 
 export default class SynchronizeCarCatalogsAsyncTask extends AbstractAsyncTask {
   protected async executeAsyncTask(): Promise<void> {
-    const syncCarCatalogsLock = await LockingHelper.acquireSyncCarCatalogsLock(Constants.DEFAULT_TENANT);
+    const syncCarCatalogsLock = await LockingHelper.acquireSyncCarCatalogsLock(Constants.DEFAULT_TENANT_OBJECT);
     if (syncCarCatalogsLock) {
       try {
         const carDatabaseImpl = await CarFactory.getCarImpl();
@@ -25,7 +25,7 @@ export default class SynchronizeCarCatalogsAsyncTask extends AbstractAsyncTask {
         await carDatabaseImpl.synchronizeCarCatalogs();
       } catch (error) {
         // Log error
-        await Logging.logActionExceptionMessage(Constants.DEFAULT_TENANT, ServerAction.SYNCHRONIZE_CAR_CATALOGS, error);
+        await Logging.logActionExceptionMessage(Constants.DEFAULT_TENANT_OBJECT, ServerAction.SYNCHRONIZE_CAR_CATALOGS, error);
       } finally {
         // Release the lock
         await LockingManager.release(syncCarCatalogsLock);

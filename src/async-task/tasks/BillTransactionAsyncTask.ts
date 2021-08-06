@@ -22,7 +22,7 @@ export default class BillTransactionAsyncTask extends AbstractAsyncTask {
           // Get the Transaction to bill
           const transactionID: string = this.asyncTask.parameters.transactionID;
           const userID: string = this.asyncTask.parameters.userID;
-          const lock = await LockingHelper.acquireBillUserLock(tenant.id, userID);
+          const lock = await LockingHelper.acquireBillUserLock(tenant, userID);
           if (lock) {
             try {
               const transaction = await TransactionStorage.getTransaction(tenant, Number(transactionID), { withUser: true, withChargingStation: true });
@@ -53,7 +53,7 @@ export default class BillTransactionAsyncTask extends AbstractAsyncTask {
           }
         }
       } catch (error) {
-        await Logging.logActionExceptionMessage(tenant.id, ServerAction.BILLING_TRANSACTION, error);
+        await Logging.logActionExceptionMessage(tenant, ServerAction.BILLING_TRANSACTION, error);
       }
     }
   }

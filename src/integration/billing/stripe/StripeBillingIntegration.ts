@@ -36,7 +36,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
 
   constructor(tenant: Tenant, settings: BillingSettings) {
     super(tenant, settings);
-    this.axiosInstance = AxiosFactory.getAxiosInstance(this.tenant.id);
+    this.axiosInstance = AxiosFactory.getAxiosInstance(this.tenant);
   }
 
   public static getInstance(tenant: Tenant, settings: BillingSettings): StripeBillingIntegration {
@@ -230,7 +230,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
         }
       } while (request.has_more);
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_TAXES,
         module: MODULE_NAME, method: 'getTaxes',
@@ -239,7 +239,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     } catch (error) {
       // catch stripe errors and send the information back to the client
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.BILLING_TAXES,
         module: MODULE_NAME, method: 'getTaxes',
         message: 'Failed to retrieve tax rates',
@@ -261,7 +261,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     } catch (error) {
       // catch stripe errors and send the information back to the client
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.BILLING_TAXES,
         module: MODULE_NAME, method: 'getTaxRate',
         message: 'Failed to retrieve tax rate',
@@ -425,7 +425,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
         throw operationResult.error;
       } else {
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_CHARGE_INVOICE,
           actionOnUser: billingInvoice.user,
@@ -465,7 +465,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       } catch (error) {
         // Catch stripe errors and send the information back to the client
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           action: ServerAction.BILLING_PERFORM_OPERATIONS,
           module: MODULE_NAME, method: '_updateTransactionsBillingData',
           message: 'Failed to update transaction billing data',
@@ -544,7 +544,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     const customerID = user?.billingData?.customerID;
     const paymentMethods: BillingPaymentMethod[] = await this._getPaymentMethods(user, customerID);
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       user,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.BILLING_PAYMENT_METHODS,
@@ -580,7 +580,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
         customer: customerID
       });
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_SETUP_PAYMENT_METHOD,
         module: MODULE_NAME, method: '_createSetupIntent',
@@ -594,7 +594,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     } catch (error) {
       // catch stripe errors and send the information back to the client
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.BILLING_SETUP_PAYMENT_METHOD,
         actionOnUser: user,
         module: MODULE_NAME, method: '_createSetupIntent',
@@ -623,7 +623,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       }
       await this.stripe.paymentMethods.update(paymentMethodId, paymentMethodUpdateParams);
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_SETUP_PAYMENT_METHOD,
         module: MODULE_NAME, method: '_attachPaymentMethod',
@@ -634,7 +634,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
         invoice_settings: { default_payment_method: paymentMethodId }
       });
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_SETUP_PAYMENT_METHOD,
         module: MODULE_NAME, method: '_attachPaymentMethod',
@@ -648,7 +648,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     } catch (error) {
       // catch stripe errors and send the information back to the client
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.BILLING_SETUP_PAYMENT_METHOD,
         actionOnUser: user,
         module: MODULE_NAME, method: '_attachPaymentMethod',
@@ -693,7 +693,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     } catch (error) {
       // catch stripe errors and send the information back to the client
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.BILLING_PAYMENT_METHODS,
         actionOnUser: user,
         module: MODULE_NAME, method: '_getPaymentMethods',
@@ -720,7 +720,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       // Detach payment method from the stripe customer
       const paymentMethod: Stripe.PaymentMethod = await this.stripe.paymentMethods.detach(paymentMethodId);
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_DELETE_PAYMENT_METHOD,
         module: MODULE_NAME, method: '_detachPaymentMethod',
@@ -734,7 +734,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     } catch (error) {
       // catch stripe errors and send the information back to the client
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.BILLING_DELETE_PAYMENT_METHOD,
         module: MODULE_NAME, method: '_detachPaymentMethod',
         message: `Failed to detach payment method - customer '${customerID}'`,
@@ -800,7 +800,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     if (!customerID) {
       // Not yet LIVE ... starting a transaction without a STRIPE CUSTOMER is allowed
       await Logging.logWarning({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_TRANSACTION,
         module: MODULE_NAME, method: 'startTransaction',
@@ -946,7 +946,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       // TODO - make it part of the pricing or billing settings!
       if (timeSpent < 60 /* seconds */ || transaction.stop.totalConsumptionWh < 1000 /* 1kWh */) {
         await Logging.logWarning({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           user: transaction.userID,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TRANSACTION,
@@ -988,7 +988,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       const customer = await this.getStripeCustomer(customerID);
       if (customer) {
         await Logging.logInfo({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           user: transaction.userID,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TRANSACTION,
@@ -1000,7 +1000,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       }
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         user: transaction.userID,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_TRANSACTION,
@@ -1133,7 +1133,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       const stripeInvoiceItem = await this._createStripeInvoiceItem(invoiceItemParameters, this.buildIdemPotencyKey(idemPotencyKey, 'parkTime'));
       if (!stripeInvoiceItem) {
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           user: user.id,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TRANSACTION,
@@ -1146,7 +1146,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     const stripeInvoiceItem = await this._createStripeInvoiceItem(invoiceItemParameters, this.buildIdemPotencyKey(idemPotencyKey, 'energy'));
     if (!stripeInvoiceItem) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         user: user.id,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_TRANSACTION,
@@ -1167,7 +1167,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       operationResult = await this.chargeStripeInvoice(stripeInvoice.id);
       if (!operationResult?.succeeded && operationResult?.error) {
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           user: user.id,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TRANSACTION,
@@ -1301,7 +1301,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     });
     if (list && !Utils.isEmptyArray(list.data)) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.USER_DELETE,
         actionOnUser: user,
         module: MODULE_NAME, method: 'checkIfUserCanBeDeleted',
@@ -1316,7 +1316,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     });
     if (list && !Utils.isEmptyArray(list.data)) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.USER_DELETE,
         actionOnUser: user,
         module: MODULE_NAME, method: 'checkIfUserCanBeDeleted',
@@ -1331,7 +1331,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
     });
     if (itemsList && itemsList.data && itemsList.data.length > 0) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         action: ServerAction.USER_DELETE,
         actionOnUser: user,
         module: MODULE_NAME, method: 'checkIfUserCanBeDeleted',
@@ -1481,7 +1481,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       await this.checkConnection();
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         user, action: ServerAction.BILLING,
         module: MODULE_NAME, method: 'precheckStartTransactionPrerequisites',
         message: 'Stripe Prerequisites to start a transaction are not met',
@@ -1494,7 +1494,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       await this.checkTaxPrerequisites(); // Checks that the taxID is still valid
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         user, action: ServerAction.BILLING,
         module: MODULE_NAME, method: 'precheckStartTransactionPrerequisites',
         message: 'Billing setting prerequisites to start a transaction are not met',
@@ -1511,7 +1511,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       this.checkStripePaymentMethod(customer);
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         user, action: ServerAction.BILLING,
         module: MODULE_NAME, method: 'precheckStartTransactionPrerequisites',
         message: 'User prerequisites to start a transaction are not met',

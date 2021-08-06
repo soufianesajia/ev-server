@@ -5,6 +5,7 @@ import Cypher from '../utils/Cypher';
 import LockingStorage from '../storage/mongodb/LockingStorage';
 import Logging from '../utils/Logging';
 import { ServerAction } from '../types/Server';
+import Tenant from '../types/Tenant';
 import Utils from '../utils/Utils';
 import chalk from 'chalk';
 
@@ -16,20 +17,20 @@ const MODULE_NAME = 'LockingManager';
  *  - E = mutually exclusive
  */
 export default class LockingManager {
-  public static createExclusiveLock(tenantID: string, entity: LockEntity, key: string, lockValiditySecs = 600): Lock {
-    return this.createLock(tenantID, entity, key, LockType.EXCLUSIVE, lockValiditySecs);
+  public static createExclusiveLock(tenant: Tenant, entity: LockEntity, key: string, lockValiditySecs = 600): Lock {
+    return this.createLock(tenant, entity, key, LockType.EXCLUSIVE, lockValiditySecs);
   }
 
   public static async acquire(lock: Lock, timeoutSecs = 0, retry = true): Promise<boolean> {
     try {
       await Logging.logDebug({
-        tenantID: lock.tenantID,
+        tenant: lock.tenant,
         module: MODULE_NAME, method: 'acquire',
         action: ServerAction.LOCKING,
         message: `Try to acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}'`,
         detailedMessages: { lock, timeoutSecs, retry }
       });
-      Utils.isDevelopmentEnv() && console.debug(chalk.green(`Try to acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenantID}'`));
+      Utils.isDevelopmentEnv() && console.debug(chalk.green(`Try to acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenant.id}'`));
       switch (lock.type) {
         case LockType.EXCLUSIVE:
           await LockingManager.acquireExclusiveLock(lock, timeoutSecs);
@@ -43,13 +44,13 @@ export default class LockingManager {
           });
       }
       await Logging.logDebug({
-        tenantID: lock.tenantID,
+        tenant: lock.tenant,
         module: MODULE_NAME, method: 'acquire',
         action: ServerAction.LOCKING,
         message: `Acquired successfully the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}'`,
         detailedMessages: { lock, timeoutSecs, retry }
       });
-      Utils.isDevelopmentEnv() && console.debug(chalk.green(`Acquired successfully the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenantID}'`));
+      Utils.isDevelopmentEnv() && console.debug(chalk.green(`Acquired successfully the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenant.id}'`));
       return true;
     } catch (error) {
       // Check if specific lock for the asset has an expiration date
@@ -57,13 +58,13 @@ export default class LockingManager {
         return LockingManager.acquire(lock, timeoutSecs, false);
       }
       await Logging.logWarning({
-        tenantID: lock.tenantID,
+        tenant: lock.tenant,
         module: MODULE_NAME, method: 'acquire',
         action: ServerAction.LOCKING,
-        message: `Cannot acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenantID}`,
+        message: `Cannot acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenant.id}`,
         detailedMessages: { lock, timeoutSecs, retry, error: error.stack }
       });
-      Utils.isDevelopmentEnv() && console.error(chalk.red(`Cannot acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenantID}'`));
+      Utils.isDevelopmentEnv() && console.error(chalk.red(`Cannot acquire the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenant.id}'`));
       return false;
     }
   }
@@ -73,7 +74,7 @@ export default class LockingManager {
     const result = await LockingStorage.deleteLock(lock);
     if (!result) {
       await Logging.logWarning({
-        tenantID: lock.tenantID,
+        tenant: lock.tenant,
         module: MODULE_NAME, method: 'release',
         action: ServerAction.LOCKING,
         message: `Lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' does not exist and cannot be released`,
@@ -82,13 +83,13 @@ export default class LockingManager {
       return false;
     }
     await Logging.logDebug({
-      tenantID: lock.tenantID,
+      tenant: lock.tenant,
       module: MODULE_NAME, method: 'release',
       action: ServerAction.LOCKING,
       message: `Released successfully the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' after ${Math.round(Date.now() - lock.timestamp.getTime()) / 1000} secs`,
       detailedMessages: { lock }
     });
-    Utils.isDevelopmentEnv() && console.debug(chalk.green(`Released the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenantID}' after ${Math.round(Date.now() - lock.timestamp.getTime()) / 1000} secs`));
+    Utils.isDevelopmentEnv() && console.debug(chalk.green(`Released the lock entity '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID '${lock.tenant.id}' after ${Math.round(Date.now() - lock.timestamp.getTime()) / 1000} secs`));
     return true;
   }
 
@@ -99,13 +100,13 @@ export default class LockingManager {
     }
   }
 
-  private static createLock(tenantID: string, entity: LockEntity, key: string, type: LockType = LockType.EXCLUSIVE, lockValiditySecs?: number): Lock {
-    if (!tenantID) {
+  private static createLock(tenant: Tenant, entity: LockEntity, key: string, type: LockType = LockType.EXCLUSIVE, lockValiditySecs?: number): Lock {
+    if (!tenant) {
       throw new BackendError({
         action: ServerAction.LOCKING,
         module: MODULE_NAME, method: 'createLock',
         message: 'Tenant must be provided',
-        detailedMessages: { tenantID, entity, key, type }
+        detailedMessages: { tenant, entity, key, type }
       });
     }
     if (!entity) {
@@ -113,7 +114,7 @@ export default class LockingManager {
         action: ServerAction.LOCKING,
         module: MODULE_NAME, method: 'createLock',
         message: 'Entity must be provided',
-        detailedMessages: { tenantID, entity, key, type }
+        detailedMessages: { tenant, entity, key, type }
       });
     }
     if (!key) {
@@ -121,13 +122,13 @@ export default class LockingManager {
         action: ServerAction.LOCKING,
         module: MODULE_NAME, method: 'createLock',
         message: 'Key must be provided',
-        detailedMessages: { tenantID, entity, key, type }
+        detailedMessages: { tenant, entity, key, type }
       });
     }
     // Build lock
     const lock: Lock = {
-      id: Cypher.hash(`${tenantID}~${entity}~${key.toLowerCase()}~${type}`),
-      tenantID,
+      id: Cypher.hash(`${tenant.id}~${entity}~${key.toLowerCase()}~${type}`),
+      tenant,
       entity: entity,
       key: key.toLowerCase(),
       type: type,
@@ -168,23 +169,23 @@ export default class LockingManager {
         // Remove the lock
         await LockingManager.release(lockInDB);
         await Logging.logWarning({
-          tenantID: lock.tenantID,
+          tenant: lock.tenant,
           module: MODULE_NAME, method: 'acquire',
           action: ServerAction.LOCKING,
-          message: `The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenantID} has expired and was released successfully`,
+          message: `The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenant.id} has expired and was released successfully`,
           detailedMessages: { lock }
         });
-        Utils.isDevelopmentEnv() && console.warn(chalk.yellow(`The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenantID} has expired and was released successfully`));
+        Utils.isDevelopmentEnv() && console.warn(chalk.yellow(`The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenant.id} has expired and was released successfully`));
         return true;
       } catch (error) {
         await Logging.logError({
-          tenantID: lock.tenantID,
+          tenant: lock.tenant,
           module: MODULE_NAME, method: 'acquire',
           action: ServerAction.LOCKING,
-          message: `The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenantID} has expired and cannot be released`,
+          message: `The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenant.id} has expired and cannot be released`,
           detailedMessages: { lock, error: error.stack }
         });
-        Utils.isDevelopmentEnv() && console.error(chalk.red(`The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenantID} has expired and cannot be released`));
+        Utils.isDevelopmentEnv() && console.error(chalk.red(`The lock '${lock.entity}' ('${lock.key}') of type '${lock.type}' in Tenant ID ${lock.tenant.id} has expired and cannot be released`));
       }
     }
     return false;

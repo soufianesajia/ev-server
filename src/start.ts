@@ -100,7 +100,7 @@ export default class Bootstrap {
         }
         // Log
         await Logging.logInfo({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           action: ServerAction.STARTUP,
           module: MODULE_NAME, method: 'start',
           message: logMsg
@@ -117,7 +117,7 @@ export default class Bootstrap {
         // eslint-disable-next-line no-console
         console.log('Unhandled Rejection: ', p, ' reason: ', reason);
         void Logging.logError({
-          tenantID: Constants.DEFAULT_TENANT,
+          tenant: Constants.DEFAULT_TENANT_OBJECT,
           action: ServerAction.STARTUP,
           module: MODULE_NAME, method: 'start',
           message: `Reason: ${(reason ? reason.message : 'Not provided')}`,
@@ -154,7 +154,7 @@ export default class Bootstrap {
       // eslint-disable-next-line no-console
       console.error(chalk.red(error));
       await Logging.logError({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'start',
         message: 'Unexpected exception',
@@ -172,7 +172,7 @@ export default class Bootstrap {
       // Log
       const logMsg = `${serverName} server worker ${worker.id} is online`;
       void Logging.logInfo({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startServerWorkers',
         message: logMsg
@@ -190,7 +190,7 @@ export default class Bootstrap {
       const logMsg = serverName + ' server worker ' + worker.id.toString() + ' died with code: ' + code + ', and signal: ' + signal +
         '.\n Starting new ' + serverName + ' server worker';
       void Logging.logInfo({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startServerWorkers',
         message: logMsg
@@ -209,7 +209,7 @@ export default class Bootstrap {
       // Log
       const logMsg = `Starting ${serverName} server worker ${i} of ${Bootstrap.numWorkers}...`;
       void Logging.logInfo({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startServerWorkers',
         message: logMsg
@@ -231,7 +231,7 @@ export default class Bootstrap {
       // eslint-disable-next-line no-console
       console.error(chalk.red(error));
       await Logging.logError({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startMasters',
         message: `Unexpected exception ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master'}: ${error.toString()}`,
@@ -326,7 +326,7 @@ export default class Bootstrap {
       // eslint-disable-next-line no-console
       console.error(chalk.red(error));
       await Logging.logError({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startServersListening',
         message: `Unexpected exception ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master'}: ${error.toString()}`,

@@ -1,7 +1,8 @@
+import Tenant from './Tenant';
 
 export default interface Lock {
   id?: string;
-  tenantID: string;
+  tenant: Tenant;
   entity: LockEntity;
   key: string;
   type: LockType;

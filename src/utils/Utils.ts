@@ -1073,7 +1073,7 @@ export default class Utils {
       cloneObject = _.cloneDeep(object);
     } catch (error) {
       void Logging.logError({
-        tenantID: Constants.DEFAULT_TENANT,
+        tenant: Constants.DEFAULT_TENANT_OBJECT,
         module: MODULE_NAME,
         method: 'cloneObject',
         action: ServerAction.LOGGING,

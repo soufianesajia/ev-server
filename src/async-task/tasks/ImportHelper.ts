@@ -144,7 +144,7 @@ export default class ImportHelper {
       } else {
         // Site does not exist
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant: tenant,
           action: ServerAction.USERS_IMPORT,
           module: MODULE_NAME, method: 'executeAsyncTask',
           user,

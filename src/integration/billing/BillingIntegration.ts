@@ -48,7 +48,7 @@ export default abstract class BillingIntegration {
       if (!Utils.isEmptyArray(users)) {
         // Process them
         await Logging.logInfo({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_SYNCHRONIZE_USERS,
           module: MODULE_NAME, method: 'synchronizeUsers',
@@ -65,7 +65,7 @@ export default abstract class BillingIntegration {
       }
     } else {
       await Logging.logWarning({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_SYNCHRONIZE_USERS,
         module: MODULE_NAME, method: 'synchronizeUsers',
@@ -73,7 +73,7 @@ export default abstract class BillingIntegration {
       });
     }
     // Log
-    await Logging.logActionsResponse(this.tenant.id, ServerAction.BILLING_SYNCHRONIZE_USERS,
+    await Logging.logActionsResponse(this.tenant, ServerAction.BILLING_SYNCHRONIZE_USERS,
       MODULE_NAME, 'synchronizeUsers', actionsDone,
       '{{inSuccess}} user(s) were successfully synchronized',
       '{{inError}} user(s) failed to be synchronized',
@@ -92,7 +92,7 @@ export default abstract class BillingIntegration {
     try {
       billingUser = await this._synchronizeUser(user);
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         actionOnUser: user,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_SYNCHRONIZE_USER,
@@ -102,7 +102,7 @@ export default abstract class BillingIntegration {
       return billingUser;
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         actionOnUser: user,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_SYNCHRONIZE_USER,
@@ -120,7 +120,7 @@ export default abstract class BillingIntegration {
       billingUser = await this._synchronizeUser(user, true /* !forceMode */);
       if (user?.billingData?.customerID !== billingUser?.billingData?.customerID) {
         await Logging.logWarning({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_FORCE_SYNCHRONIZE_USER,
           module: MODULE_NAME, method: 'forceSynchronizeUser',
@@ -128,7 +128,7 @@ export default abstract class BillingIntegration {
         });
       }
       await Logging.logInfo({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_FORCE_SYNCHRONIZE_USER,
         actionOnUser: user,
@@ -137,7 +137,7 @@ export default abstract class BillingIntegration {
       });
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         actionOnUser: user,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_FORCE_SYNCHRONIZE_USER,
@@ -156,7 +156,7 @@ export default abstract class BillingIntegration {
       inError: 0
     };
     await Logging.logWarning({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.BILLING_SYNCHRONIZE_INVOICES,
       module: MODULE_NAME, method: 'synchronizeInvoices',
@@ -192,7 +192,7 @@ export default abstract class BillingIntegration {
           if (!forceOperation && moment(invoice.createdOn).isSame(moment(), 'day')) {
             actionsDone.inSuccess++;
             await Logging.logWarning({
-              tenantID: this.tenant.id,
+              tenant: this.tenant,
               source: Constants.CENTRAL_SERVER,
               action: ServerAction.BILLING_PERFORM_OPERATIONS,
               actionOnUser: invoice.user,
@@ -207,7 +207,7 @@ export default abstract class BillingIntegration {
             skip--; // This is very important!
           }
           await Logging.logInfo({
-            tenantID: this.tenant.id,
+            tenant: this.tenant,
             source: Constants.CENTRAL_SERVER,
             action: ServerAction.BILLING_PERFORM_OPERATIONS,
             actionOnUser: invoice.user,
@@ -218,7 +218,7 @@ export default abstract class BillingIntegration {
         } catch (error) {
           actionsDone.inError++;
           await Logging.logError({
-            tenantID: this.tenant.id,
+            tenant: this.tenant,
             source: Constants.CENTRAL_SERVER,
             action: ServerAction.BILLING_PERFORM_OPERATIONS,
             actionOnUser: invoice.user,
@@ -264,7 +264,7 @@ export default abstract class BillingIntegration {
       }
     } catch (error) {
       await Logging.logError({
-        tenantID: this.tenant.id,
+        tenant: this.tenant,
         source: Constants.CENTRAL_SERVER,
         action: ServerAction.BILLING_TRANSACTION,
         module: MODULE_NAME, method: 'sendInvoiceNotification',
@@ -380,7 +380,7 @@ export default abstract class BillingIntegration {
   public async clearTestData(): Promise<void> {
     // await this.checkConnection(); - stripe connection is useless to cleanup test data
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.BILLING_TEST_DATA_CLEANUP,
       module: MODULE_NAME, method: '_clearAllInvoiceTestData',
@@ -388,7 +388,7 @@ export default abstract class BillingIntegration {
     });
     await this._clearAllInvoiceTestData();
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.BILLING_TEST_DATA_CLEANUP,
       module: MODULE_NAME, method: '_clearAllInvoiceTestData',
@@ -396,7 +396,7 @@ export default abstract class BillingIntegration {
     });
     await this._clearAllUsersTestData();
     await Logging.logInfo({
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       source: Constants.CENTRAL_SERVER,
       action: ServerAction.BILLING_TEST_DATA_CLEANUP,
       module: MODULE_NAME, method: '_clearAllInvoiceTestData',
@@ -411,7 +411,7 @@ export default abstract class BillingIntegration {
       try {
         await this._clearInvoiceTestData(invoice);
         await Logging.logInfo({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TEST_DATA_CLEANUP,
           actionOnUser: invoice.user,
@@ -420,7 +420,7 @@ export default abstract class BillingIntegration {
         });
       } catch (error) {
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TEST_DATA_CLEANUP,
           actionOnUser: invoice.user,
@@ -467,7 +467,7 @@ export default abstract class BillingIntegration {
         await TransactionStorage.saveTransactionBillingData(this.tenant, transaction.id, transaction.billingData);
       } catch (error) {
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           action: ServerAction.BILLING_TEST_DATA_CLEANUP,
           module: MODULE_NAME, method: '_clearTransactionsTestData',
           message: 'Failed to clear transaction billing data',
@@ -484,7 +484,7 @@ export default abstract class BillingIntegration {
       try {
         await this._clearUserTestBillingData(user);
         await Logging.logInfo({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TEST_DATA_CLEANUP,
           actionOnUser: user,
@@ -493,7 +493,7 @@ export default abstract class BillingIntegration {
         });
       } catch (error) {
         await Logging.logError({
-          tenantID: this.tenant.id,
+          tenant: this.tenant,
           source: Constants.CENTRAL_SERVER,
           action: ServerAction.BILLING_TEST_DATA_CLEANUP,
           actionOnUser: user,

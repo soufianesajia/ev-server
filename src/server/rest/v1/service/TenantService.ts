@@ -66,7 +66,7 @@ export default class TenantService {
     await TenantStorage.deleteTenantDB(tenant.id);
     // Log
     await Logging.logSecurityInfo({
-      tenantID: req.user.tenantID, user: req.user,
+      tenant: req.tenant, user: req.user,
       module: MODULE_NAME, method: 'handleDeleteTenant',
       message: `Tenant '${tenant.name}' has been deleted successfully`,
       action: action,
@@ -258,10 +258,10 @@ export default class TenantService {
     await TenantService.updateSettingsWithComponents(filteredRequest, req);
     // Create DB collections
     // Database creation Lock
-    const createDatabaseLock = LockingManager.createExclusiveLock(filteredRequest.id, LockEntity.DATABASE, 'create-database');
+    const createDatabaseLock = LockingManager.createExclusiveLock(filteredRequest, LockEntity.DATABASE, 'create-database');
     if (await LockingManager.acquire(createDatabaseLock)) {
       try {
-        await TenantStorage.createTenantDB(filteredRequest.id);
+        await TenantStorage.createTenantDB(filteredRequest);
         // Create initial settings for tenant
         await TenantService.createInitialSettingsForTenant(filteredRequest);
       } finally {
@@ -306,7 +306,7 @@ export default class TenantService {
     ).catch(() => { });
     // Log
     await Logging.logSecurityInfo({
-      tenantID: req.user.tenantID, user: req.user,
+      tenant: req.tenant, user: req.user,
       module: MODULE_NAME, method: 'handleCreateTenant',
       message: `Tenant '${filteredRequest.name}' has been created successfully`,
       action: action,
@@ -382,7 +382,7 @@ export default class TenantService {
     await TenantService.updateSettingsWithComponents(filteredRequest, req);
     // Log
     await Logging.logSecurityInfo({
-      tenantID: req.user.tenantID, user: req.user,
+      tenant: req.tenant, user: req.user,
       module: MODULE_NAME, method: 'handleUpdateTenant',
       message: `Tenant '${filteredRequest.name}' has been updated successfully`,
       action: action,

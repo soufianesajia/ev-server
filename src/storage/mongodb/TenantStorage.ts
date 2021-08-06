@@ -39,7 +39,7 @@ export default class TenantStorage {
 
   public static async saveTenant(tenantToSave: Partial<Tenant>, saveLogo = true): Promise<string> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT, MODULE_NAME, 'saveTenant');
+    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'saveTenant');
     // Check
     if (!tenantToSave.id && !tenantToSave.name) {
       throw new BackendError({
@@ -91,17 +91,17 @@ export default class TenantStorage {
       await TenantStorage._saveTenantLogo(tenantMDB._id.toString(), tenantToSave.logo);
     }
     // Debug
-    await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'saveTenant', uniqueTimerID, tenantMDB);
+    await Logging.traceEnd(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'saveTenant', uniqueTimerID, tenantMDB);
     return tenantFilter._id.toString();
   }
 
-  public static async createTenantDB(tenantID: string): Promise<void> {
+  public static async createTenantDB(tenant: Tenant): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'createTenantDB');
+    const uniqueTimerID = Logging.traceStart(tenant, MODULE_NAME, 'createTenantDB');
     // Create tenant collections
-    await global.database.checkAndCreateTenantDatabase(tenantID);
+    await global.database.checkAndCreateTenantDatabase(tenant.id);
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'createTenantDB', uniqueTimerID, { tenantID });
+    await Logging.traceEnd(tenant, MODULE_NAME, 'createTenantDB', uniqueTimerID, { tenant });
   }
 
   // Delegate
@@ -109,7 +109,7 @@ export default class TenantStorage {
       params: { tenantIDs?: string[]; tenantName?: string; tenantSubdomain?: string; search?: string, withLogo?: boolean },
       dbParams: DbParams, projectFields?: string[]): Promise<DataResult<Tenant>> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT, MODULE_NAME, 'getTenants');
+    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'getTenants');
     // Clone before updating the values
     dbParams = Utils.cloneObject(dbParams);
     // Check Limit
@@ -158,7 +158,7 @@ export default class TenantStorage {
     // Check if only the total count is requested
     if (dbParams.onlyRecordCount) {
       // Return only the count
-      await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'getTenants', uniqueTimerID, tenantsCountMDB);
+      await Logging.traceEnd(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'getTenants', uniqueTimerID, tenantsCountMDB);
       return {
         count: (tenantsCountMDB.length > 0 ? tenantsCountMDB[0].count : 0),
         result: []
@@ -208,7 +208,7 @@ export default class TenantStorage {
         allowDiskUse: true
       }).toArray();
     // Debug
-    await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'getTenants', uniqueTimerID, tenantsMDB);
+    await Logging.traceEnd(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'getTenants', uniqueTimerID, tenantsMDB);
     // Ok
     return {
       count: (tenantsCountMDB.length > 0 ?
@@ -219,50 +219,50 @@ export default class TenantStorage {
 
   public static async deleteTenant(id: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT, MODULE_NAME, 'deleteTenant');
+    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'deleteTenant');
     // Delete
     await global.database.getCollection<Tenant>(Constants.DEFAULT_TENANT, 'tenants')
       .findOneAndDelete({
         '_id': DatabaseUtils.convertToObjectID(id)
       });
     // Debug
-    await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'deleteTenant', uniqueTimerID, { id });
+    await Logging.traceEnd(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'deleteTenant', uniqueTimerID, { id });
   }
 
   public static async deleteTenantDB(id: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT, MODULE_NAME, 'deleteTenantDB');
+    const uniqueTimerID = Logging.traceStart(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'deleteTenantDB');
     // Delete
     await global.database.deleteTenantDatabase(id);
     // Debug
-    await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'deleteTenantDB', uniqueTimerID, { id });
+    await Logging.traceEnd(Constants.DEFAULT_TENANT_OBJECT, MODULE_NAME, 'deleteTenantDB', uniqueTimerID, { id });
   }
 
   public static async getTenantLogo(tenant: Tenant): Promise<TenantLogo> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getTenantLogo');
+    const uniqueTimerID = Logging.traceStart(tenant, MODULE_NAME, 'getTenantLogo');
     // Check Tenant
     DatabaseUtils.checkTenantObject(tenant);
     // Read DB
     const tenantLogoMDB = await global.database.getCollection<{ _id: ObjectId; logo: string }>(Constants.DEFAULT_TENANT, 'tenantlogos')
       .findOne({ _id: DatabaseUtils.convertToObjectID(tenant.id) });
     // Debug
-    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getTenantLogo', uniqueTimerID, tenantLogoMDB);
+    await Logging.traceEnd(tenant, MODULE_NAME, 'getTenantLogo', uniqueTimerID, tenantLogoMDB);
     return {
       id: tenant.id,
       logo: tenantLogoMDB ? tenantLogoMDB.logo : null
     };
   }
 
-  private static async _saveTenantLogo(tenantID: string, tenantLogoToSave: string): Promise<void> {
+  private static async _saveTenantLogo(tenant: Tenant, tenantLogoToSave: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveTenantLogo');
+    const uniqueTimerID = Logging.traceStart(tenant, MODULE_NAME, 'saveTenantLogo');
     // Modify
     await global.database.getCollection<any>(Constants.DEFAULT_TENANT, 'tenantlogos').findOneAndUpdate(
-      { '_id': DatabaseUtils.convertToObjectID(tenantID) },
+      { '_id': DatabaseUtils.convertToObjectID(tenant.id) },
       { $set: { logo: tenantLogoToSave } },
       { upsert: true });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveTenantLogo', uniqueTimerID, tenantLogoToSave);
+    await Logging.traceEnd(tenant, MODULE_NAME, 'saveTenantLogo', uniqueTimerID, tenantLogoToSave);
   }
 }

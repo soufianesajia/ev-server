@@ -24,7 +24,7 @@ export default class OCPIClientFactory {
       // Check
       if (!ocpiSettings && ocpiSettings.ocpi) {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant: tenant,
           action: ServerAction.OCPI_SETTINGS,
           module: MODULE_NAME, method: 'getOcpiClient',
           message: 'OCPI Settings are not configured'
@@ -39,7 +39,7 @@ export default class OCPIClientFactory {
         }
       } else {
         await Logging.logError({
-          tenantID: tenant.id,
+          tenant: tenant,
           action: ServerAction.OCPI_SETTINGS,
           module: MODULE_NAME, method: 'getOcpiClient',
           message: 'OCPI endpoint is not provided'
@@ -54,7 +54,7 @@ export default class OCPIClientFactory {
       return client as CpoOCPIClient;
     }
     await Logging.logError({
-      tenantID: tenant.id,
+      tenant: tenant,
       action: ServerAction.OCPI_CLIENT_INITIALIZATION,
       module: MODULE_NAME, method: 'getCpoOcpiClient',
       message: `CPO OCPI Client is not compatible with endpoint role '${ocpiEndpoint.role}'`
@@ -67,7 +67,7 @@ export default class OCPIClientFactory {
       return client as EmspOCPIClient;
     }
     await Logging.logError({
-      tenantID: tenant.id,
+      tenant: tenant,
       action: ServerAction.OCPI_CLIENT_INITIALIZATION,
       module: MODULE_NAME, method: 'getEmspOcpiClient',
       message: `EMSP OCPI Client is not compatible with endpoint role '${ocpiEndpoint.role}'`
