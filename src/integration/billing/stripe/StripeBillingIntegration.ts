@@ -963,7 +963,7 @@ export default class StripeBillingIntegration extends BillingIntegration {
       name: AsyncTasks.BILL_TRANSACTION,
       action: ServerAction.BILLING_TRANSACTION,
       type: AsyncTaskType.TASK,
-      tenantID: this.tenant.id,
+      tenant: this.tenant,
       parameters: {
         transactionID: String(transaction.id),
         userID: transaction.userID

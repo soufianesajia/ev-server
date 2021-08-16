@@ -29,7 +29,7 @@ export default class AsyncTaskStorage {
       name: asyncTaskToSave.name,
       action: asyncTaskToSave.action,
       type: asyncTaskToSave.type,
-      tenantID: DatabaseUtils.convertToObjectID(asyncTaskToSave.tenantID),
+      tenantID: DatabaseUtils.convertToObjectID(asyncTaskToSave.tenant.id),
       status: asyncTaskToSave.status,
       parent: asyncTaskToSave.parent,
       execHost: asyncTaskToSave.execHost,

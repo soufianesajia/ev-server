@@ -11,7 +11,7 @@ import Utils from '../../../utils/Utils';
 
 export default class OCPICheckCdrsAsyncTask extends AbstractAsyncTask {
   protected async executeAsyncTask(): Promise<void> {
-    const tenant = await TenantStorage.getTenant(this.asyncTask.tenantID);
+    const tenant = this.asyncTask.tenant;
     // Check if OCPI component is active
     if (Utils.isTenantComponentActive(tenant, TenantComponents.OCPI)) {
       try {
