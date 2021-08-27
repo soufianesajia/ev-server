@@ -1,7 +1,7 @@
+import { AuthorizationActions } from './Authorization';
 import CreatedUpdatedProps from './CreatedUpdatedProps';
-import { UserCar } from './User';
 
-export interface CarCatalog extends CreatedUpdatedProps {
+export interface CarCatalog extends CreatedUpdatedProps, AuthorizationActions {
   id: number;
   vehicleMake: string;
   vehicleModel: string;
@@ -128,14 +128,14 @@ export enum CarType {
   POOL_CAR = 'PC',
 }
 
-export interface Car extends CreatedUpdatedProps {
-  id: string;
+export interface Car extends CreatedUpdatedProps, AuthorizationActions {
+  id?: string;
   vin: string;
   licensePlate: string;
   carCatalogID: number;
   carCatalog?: CarCatalog;
-  userIDs?: string;
-  carUsers?: UserCar[];
+  userID: string;
+  default: boolean;
   type?: CarType;
   converter?: CarConverter;
 }
@@ -152,16 +152,6 @@ export enum CarConverterType {
   OPTION = 'O',
   ALTERNATIVE = 'A',
 }
-
-
-export interface CarUser extends CreatedUpdatedProps {
-  id: string;
-  car: Car;
-  userID: string;
-  default?: boolean;
-  owner?: boolean;
-}
-
 export interface CarMaker {
   carMaker: string;
 }

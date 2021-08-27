@@ -82,7 +82,7 @@ export default abstract class OICPClient {
     try {
       // Save endpoint
       this.oicpEndpoint.status = OICPRegistrationStatus.UNREGISTERED;
-      await OICPEndpointStorage.saveOicpEndpoint(this.tenant.id, this.oicpEndpoint);
+      await OICPEndpointStorage.saveOicpEndpoint(this.tenant, this.oicpEndpoint);
       // Send success
       unregisterResult.statusCode = StatusCodes.OK;
       unregisterResult.statusText = ReasonPhrases.OK;
@@ -99,7 +99,7 @@ export default abstract class OICPClient {
     try {
       // Save endpoint
       this.oicpEndpoint.status = OICPRegistrationStatus.REGISTERED;
-      await OICPEndpointStorage.saveOicpEndpoint(this.tenant.id, this.oicpEndpoint);
+      await OICPEndpointStorage.saveOicpEndpoint(this.tenant, this.oicpEndpoint);
       // Send success
       registerResult.statusCode = StatusCodes.OK;
       registerResult.statusText = ReasonPhrases.OK;
@@ -149,7 +149,7 @@ export default abstract class OICPClient {
         module: MODULE_NAME, method: 'getPrivateKey',
       });
     }
-    return await Cypher.decrypt(this.tenant.id, this.settings[this.role].key);
+    return await Cypher.decrypt(this.tenant, this.settings[this.role].key);
   }
 
   private async getClientCertificate(action: ServerAction): Promise<string> {
@@ -165,7 +165,7 @@ export default abstract class OICPClient {
         module: MODULE_NAME, method: 'getClientCertificate',
       });
     }
-    return await Cypher.decrypt(this.tenant.id, this.settings[this.role].cert);
+    return await Cypher.decrypt(this.tenant, this.settings[this.role].cert);
   }
 
   private getAxiosConfig(): AxiosRequestConfig {

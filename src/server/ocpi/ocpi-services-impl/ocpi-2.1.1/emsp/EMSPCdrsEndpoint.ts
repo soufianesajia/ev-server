@@ -48,7 +48,7 @@ export default class EMSPCdrsEndpoint extends AbstractEndpoint {
         ocpiError: OCPIStatusCode.CODE_2001_INVALID_PARAMETER_ERROR
       });
     }
-    const transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant.id, id);
+    const transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant, id);
     if (!transaction) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -75,7 +75,7 @@ export default class EMSPCdrsEndpoint extends AbstractEndpoint {
 
   private async postCdrRequest(req: Request, res: Response, next: NextFunction, tenant: Tenant): Promise<OCPIResponse> {
     const cdr: OCPICdr = req.body as OCPICdr;
-    await OCPIUtilsService.processCdr(tenant.id, cdr);
+    await OCPIUtilsService.processCdr(tenant, cdr);
     res.setHeader('Location', OCPIUtils.buildLocationUrl(req, this.getBaseUrl(req), cdr.id));
     return OCPIUtils.success({});
   }

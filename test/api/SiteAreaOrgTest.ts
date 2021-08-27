@@ -79,7 +79,6 @@ async function createSiteWithSiteAdmin() {
   await assignSiteAdmin(ContextDefinition.USER_CONTEXTS.BASIC_USER, testData.siteWithSiteAdmin);
   testData.createdSites.push(testData.siteWithSiteAdmin);
 }
-
 /**
  * @param userRole
  * @param site
@@ -92,7 +91,7 @@ async function assignSiteAdmin(userRole, site) {
   await testData.userService.siteApi.assignSiteAdmin(site.id, userContext.id);
 }
 
-describe('Site Area tests', function() {
+describe('Site Area', function() {
   this.timeout(1000000); // Will automatically stop the unit test after that period of time
 
   before(async () => {
@@ -105,7 +104,7 @@ describe('Site Area tests', function() {
     await ContextProvider.defaultInstance.cleanUpCreatedContent();
   });
 
-  describe('With all components (tenant utall)', () => {
+  describe('With all components (utall)', () => {
 
     before(async () => {
       testData.tenantContext = await ContextProvider.defaultInstance.getTenantContext(ContextDefinition.TENANT_CONTEXTS.TENANT_WITH_ALL_COMPONENTS);
@@ -118,33 +117,33 @@ describe('Site Area tests', function() {
       testData.siteAreaContext = testData.siteContext.getSiteAreaContext(ContextDefinition.SITE_AREA_CONTEXTS.WITH_ACL);
     });
 
-    after(() => {
+    after(async () => {
       // Delete any created site area
-      testData.createdSiteAreas.forEach(async (siteArea) => {
+      for (const siteArea of testData.createdSiteAreas) {
         await testData.centralUserService.deleteEntity(
           testData.centralUserService.siteAreaApi,
           siteArea,
           false
         );
-      });
+      }
       testData.createdSiteAreas = [];
       // Delete any created site
-      testData.createdSites.forEach(async (site) => {
+      for (const site of testData.createdSites) {
         await testData.centralUserService.deleteEntity(
           testData.centralUserService.siteApi,
           site,
           false
         );
-      });
-      testData.createdSiteAreas = [];
+      }
+      testData.createdSites = [];
       // Delete any created user
-      testData.createdUsers.forEach(async (user) => {
+      for (const user of testData.createdUsers) {
         await testData.centralUserService.deleteEntity(
           testData.centralUserService.userApi,
           user,
           false
         );
-      });
+      }
       testData.createdUsers = [];
     });
 
@@ -424,27 +423,12 @@ describe('Site Area tests', function() {
         expect(response.status).to.equal(StatusCodes.FORBIDDEN);
       });
 
-      it('Should be able to assign ChargingStations to SiteArea if he is SiteAdmin', async () => {
-        const chargingStations = await testData.userService.chargingStationApi.readAll({});
-        expect(chargingStations.status).to.equal(StatusCodes.OK);
-        // Assign ChargingStation to SiteArea
-        const response = await testData.userService.siteAreaApi.assignChargingStations(
-          testData.siteAreaWithSiteAdmin.id, [chargingStations.data.result[0].id]);
-        expect(response.status).to.equal(StatusCodes.OK);
-      });
-
       it('Should be able to remove ChargingStations from SiteArea if he is SiteAdmin', async () => {
         const chargingStations = await testData.userService.chargingStationApi.readAll({});
         expect(chargingStations.status).to.equal(StatusCodes.OK);
         // Remove ChargingStation from SiteArea
         const response = await testData.userService.siteAreaApi.removeChargingStations(
           testData.siteAreaWithSiteAdmin.id, [chargingStations.data.result[0].id]);
-        expect(response.status).to.equal(StatusCodes.OK);
-      });
-
-      it('Should be able to assign Assets to SiteArea if he is SiteAdmin', async () => {
-        const response = await testData.userService.siteAreaApi.assignAssets(
-          testData.siteAreaWithSiteAdmin.id, [testData.testAsset.id]);
         expect(response.status).to.equal(StatusCodes.OK);
       });
 

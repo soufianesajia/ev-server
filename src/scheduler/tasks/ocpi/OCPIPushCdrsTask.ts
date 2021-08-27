@@ -5,6 +5,7 @@ import Logging from '../../../utils/Logging';
 import OCPPUtils from '../../../server/ocpp/utils/OCPPUtils';
 import SchedulerTask from '../../SchedulerTask';
 import { ServerAction } from '../../../types/Server';
+import TagStorage from '../../../storage/mongodb/TagStorage';
 import { TaskConfig } from '../../../types/TaskConfig';
 import Tenant from '../../../types/Tenant';
 import TenantComponents from '../../../types/TenantComponents';
@@ -22,7 +23,7 @@ export default class OCPIPushCdrsTask extends SchedulerTask {
       // Check if OCPI component is active
       if (Utils.isTenantComponentActive(tenant, TenantComponents.OCPI)) {
         // Get the lock
-        const ocpiLock = await LockingHelper.createOCPIPushCpoCdrsLock(tenant.id);
+        const ocpiLock = await LockingHelper.acquireOCPIPushCpoCdrsLock(tenant.id);
         if (ocpiLock) {
           try {
             // Get all finished Transaction with no CDR
@@ -48,11 +49,11 @@ export default class OCPIPushCdrsTask extends SchedulerTask {
               });
               for (const transactionMDB of transactionsMDB) {
                 // Get the lock: Used to avoid collision with manual push or end of transaction push
-                const ocpiTransactionLock = await LockingHelper.createOCPIPushCdrLock(tenant.id, transactionMDB._id);
+                const ocpiTransactionLock = await LockingHelper.acquireOCPIPushCdrLock(tenant.id, transactionMDB._id);
                 if (ocpiTransactionLock) {
                   try {
                     // Get Transaction
-                    const transaction = await TransactionStorage.getTransaction(tenant.id, transactionMDB._id);
+                    const transaction = await TransactionStorage.getTransaction(tenant, transactionMDB._id, { withUser: true });
                     if (!transaction) {
                       await Logging.logError({
                         tenantID: tenant.id,
@@ -72,7 +73,7 @@ export default class OCPIPushCdrsTask extends SchedulerTask {
                       continue;
                     }
                     // Get Charging Station
-                    const chargingStation = await ChargingStationStorage.getChargingStation(tenant.id, transaction.chargeBoxID);
+                    const chargingStation = await ChargingStationStorage.getChargingStation(tenant, transaction.chargeBoxID);
                     if (!chargingStation) {
                       await Logging.logError({
                         tenantID: tenant.id,
@@ -82,10 +83,21 @@ export default class OCPIPushCdrsTask extends SchedulerTask {
                       });
                       continue;
                     }
-                    // Post CDR
-                    await OCPPUtils.processOCPITransaction(tenant, transaction, chargingStation, TransactionAction.END);
+                    // Get Tag
+                    const tag = await TagStorage.getTag(tenant, transaction.tagID);
+                    if (!tag) {
+                      await Logging.logError({
+                        tenantID: tenant.id,
+                        action: ServerAction.OCPI_PUSH_CDRS,
+                        module: MODULE_NAME, method: 'processTenant',
+                        message: `Tag ID '${transaction.tagID}' not found`,
+                      });
+                      continue;
+                    }
+                    // Roaming
+                    await OCPPUtils.processTransactionRoaming(tenant, transaction, chargingStation, tag, TransactionAction.END);
                     // Save
-                    await TransactionStorage.saveTransaction(tenant.id, transaction);
+                    await TransactionStorage.saveTransactionOcpiData(tenant, transaction.id, transaction.ocpiData);
                     // Ok
                     await Logging.logInfo({
                       tenantID: tenant.id,
@@ -101,7 +113,7 @@ export default class OCPIPushCdrsTask extends SchedulerTask {
                       action: ServerAction.OCPI_PUSH_CDRS,
                       module: MODULE_NAME, method: 'processTenant',
                       message: `Failed to pushed the CDR of the Transaction ID '${transactionMDB._id}' to OCPI`,
-                      detailedMessages: { error: error.message, stack: error.stack, transaction: transactionMDB }
+                      detailedMessages: { error: error.stack, transaction: transactionMDB }
                     });
                   } finally {
                     // Release the lock

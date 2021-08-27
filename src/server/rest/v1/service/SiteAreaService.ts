@@ -20,6 +20,7 @@ import SiteAreaSecurity from './security/SiteAreaSecurity';
 import SiteAreaStorage from '../../../../storage/mongodb/SiteAreaStorage';
 import SmartChargingFactory from '../../../../integration/smart-charging/SmartChargingFactory';
 import TenantComponents from '../../../../types/TenantComponents';
+import TenantStorage from '../../../../storage/mongodb/TenantStorage';
 import Utils from '../../../../utils/Utils';
 import UtilsService from './UtilsService';
 import moment from 'moment';
@@ -34,17 +35,17 @@ export default class SiteAreaService {
     // Filter request
     const filteredRequest = SiteAreaSecurity.filterAssignAssetsToSiteAreaRequest(req.body);
     // Check and Get Site Area
-    const authAction = action === ServerAction.ADD_ASSET_TO_SITE_AREA ? Action.ASSIGN_ASSETS : Action.UNASSIGN_ASSETS;
+    const authAction = action === ServerAction.ADD_ASSET_TO_SITE_AREA ? Action.ASSIGN_ASSETS_TO_SITE_AREA : Action.UNASSIGN_ASSETS_TO_SITE_AREA;
     const siteArea = await UtilsService.checkAndGetSiteAreaAuthorization(
-      req.tenant, req.user, filteredRequest.siteAreaID, authAction, action, {});
+      req.tenant, req.user, filteredRequest.siteAreaID, authAction, action);
     // Check and Get Assets
     const assets = await UtilsService.checkSiteAreaAssetsAuthorization(
-      req.tenant, req.user, siteArea, filteredRequest.assetIDs, action, {});
+      req.tenant, req.user, siteArea, filteredRequest.assetIDs, action);
     // Save
     if (action === ServerAction.ADD_ASSET_TO_SITE_AREA) {
-      await SiteAreaStorage.addAssetsToSiteArea(req.user.tenantID, siteArea, assets.map((asset) => asset.id));
+      await SiteAreaStorage.addAssetsToSiteArea(req.tenant, siteArea, assets.map((asset) => asset.id));
     } else {
-      await SiteAreaStorage.removeAssetsFromSiteArea(req.user.tenantID, filteredRequest.siteAreaID, assets.map((asset) => asset.id));
+      await SiteAreaStorage.removeAssetsFromSiteArea(req.tenant, filteredRequest.siteAreaID, assets.map((asset) => asset.id));
     }
     // Log
     await Logging.logSecurityInfo({
@@ -67,12 +68,12 @@ export default class SiteAreaService {
     // Filter request
     const filteredRequest = SiteAreaSecurity.filterAssignChargingStationsToSiteAreaRequest(req.body);
     // Check and Get Site Area
-    const authAction = action === ServerAction.ADD_CHARGING_STATIONS_TO_SITE_AREA ? Action.ASSIGN_CHARGING_STATIONS : Action.UNASSIGN_CHARGING_STATIONS;
+    const authAction = action === ServerAction.ADD_CHARGING_STATIONS_TO_SITE_AREA ? Action.ASSIGN_CHARGING_STATIONS_TO_SITE_AREA : Action.UNASSIGN_CHARGING_STATIONS_TO_SITE_AREA;
     const siteArea = await UtilsService.checkAndGetSiteAreaAuthorization(
-      req.tenant, req.user, filteredRequest.siteAreaID, authAction, action, {});
+      req.tenant, req.user, filteredRequest.siteAreaID, authAction, action, null, { withSite: true });
     // Check and Get Charging Stations
     const chargingStations = await UtilsService.checkSiteAreaChargingStationsAuthorization(
-      req.tenant, req.user, siteArea, filteredRequest.chargingStationIDs, action, {});
+      req.tenant, req.user, siteArea, filteredRequest.chargingStationIDs, action);
     // Check if Charging Station has 3 phases on 1 phase Site Area
     if (siteArea.numberOfPhases === 1) {
       for (const chargingStation of chargingStations) {
@@ -95,10 +96,10 @@ export default class SiteAreaService {
     // Save
     if (action === ServerAction.ADD_CHARGING_STATIONS_TO_SITE_AREA) {
       await SiteAreaStorage.addChargingStationsToSiteArea(
-        req.user.tenantID, siteArea, chargingStations.map((chargingStation) => chargingStation.id));
+        req.tenant, siteArea, chargingStations.map((chargingStation) => chargingStation.id));
     } else {
       await SiteAreaStorage.removeChargingStationsFromSiteArea(
-        req.user.tenantID, filteredRequest.siteAreaID, chargingStations.map((chargingStation) => chargingStation.id));
+        req.tenant, filteredRequest.siteAreaID, chargingStations.map((chargingStation) => chargingStation.id));
     }
     // Log
     await Logging.logSecurityInfo({
@@ -122,9 +123,9 @@ export default class SiteAreaService {
     UtilsService.assertIdIsProvided(action, siteAreaID, MODULE_NAME, 'handleDeleteSiteArea', req.user);
     // Check and Get Site Area
     const siteArea = await UtilsService.checkAndGetSiteAreaAuthorization(
-      req.tenant, req.user, siteAreaID, Action.DELETE, action, {});
+      req.tenant, req.user, siteAreaID, Action.DELETE, action);
     // Delete
-    await SiteAreaStorage.deleteSiteArea(req.user.tenantID, siteArea.id);
+    await SiteAreaStorage.deleteSiteArea(req.tenant, siteArea.id);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
@@ -147,7 +148,7 @@ export default class SiteAreaService {
     const filteredRequest = SiteAreaSecurity.filterSiteAreaRequest(req.query);
     // Check and Get Site Area
     const siteArea = await UtilsService.checkAndGetSiteAreaAuthorization(
-      req.tenant, req.user, filteredRequest.ID, Action.READ, action, {
+      req.tenant, req.user, filteredRequest.ID, Action.READ, action, null, {
         withSite: filteredRequest.WithSite,
         withChargingStations: filteredRequest.WithChargingStations,
         withImage: true,
@@ -163,7 +164,8 @@ export default class SiteAreaService {
     // Check mandatory fields
     UtilsService.assertIdIsProvided(action, filteredRequest.ID, MODULE_NAME, 'handleGetSiteAreaImage', req.user);
     // Get it
-    const siteAreaImage = await SiteAreaStorage.getSiteAreaImage(filteredRequest.TenantID, filteredRequest.ID);
+    const siteAreaImage = await SiteAreaStorage.getSiteAreaImage(
+      await TenantStorage.getTenant(filteredRequest.TenantID), filteredRequest.ID);
     // Return
     if (siteAreaImage?.image) {
       let header = 'image';
@@ -189,14 +191,14 @@ export default class SiteAreaService {
     // Filter
     const filteredRequest = SiteAreaSecurity.filterSiteAreasRequest(req.query);
     // Check dynamic auth
-    const authorizationSiteAreasFilter = await AuthorizationService.checkAndGetSiteAreasAuthorizationFilters(
+    const authorizationSiteAreasFilter = await AuthorizationService.checkAndGetSiteAreasAuthorizations(
       req.tenant, req.user, filteredRequest);
     if (!authorizationSiteAreasFilter.authorized) {
       UtilsService.sendEmptyDataResult(res, next);
       return;
     }
     // Get the SiteAreas
-    const siteAreas = await SiteAreaStorage.getSiteAreas(req.user.tenantID,
+    const siteAreas = await SiteAreaStorage.getSiteAreas(req.tenant,
       {
         issuer: filteredRequest.Issuer,
         search: filteredRequest.Search,
@@ -205,6 +207,8 @@ export default class SiteAreaService {
         withAvailableChargingStations: filteredRequest.WithAvailableChargers,
         locCoordinates: filteredRequest.LocCoordinates,
         locMaxDistanceMeters: filteredRequest.LocMaxDistanceMeters,
+        siteIDs: (filteredRequest.SiteID ? filteredRequest.SiteID.split('|') : null),
+        companyIDs: (filteredRequest.CompanyID ? filteredRequest.CompanyID.split('|') : null),
         ...authorizationSiteAreasFilter.filters
       },
       {
@@ -217,7 +221,7 @@ export default class SiteAreaService {
     );
     // Add Auth flags
     await AuthorizationService.addSiteAreasAuthorizations(req.tenant, req.user, siteAreas as SiteAreaDataResult,
-      authorizationSiteAreasFilter, filteredRequest);
+      authorizationSiteAreasFilter);
     // Return
     res.json(siteAreas);
     next();
@@ -253,13 +257,13 @@ export default class SiteAreaService {
     }
     // Check and Get Site Area
     const siteArea = await UtilsService.checkAndGetSiteAreaAuthorization(
-      req.tenant, req.user, filteredRequest.SiteAreaID, Action.READ, action, {});
+      req.tenant, req.user, filteredRequest.SiteAreaID, Action.READ, action);
     // Get the ConsumptionValues
-    const consumptions = await ConsumptionStorage.getSiteAreaConsumptions(req.user.tenantID, {
+    const consumptions = await ConsumptionStorage.getSiteAreaConsumptions(req.tenant, {
       siteAreaID: filteredRequest.SiteAreaID,
       startDate: filteredRequest.StartDate,
       endDate: filteredRequest.EndDate
-    }, [ 'startedAt', 'instantAmps', 'instantWatts', 'limitAmps', 'limitWatts' ]);
+    });
     // Assign
     siteArea.values = consumptions;
     // Return
@@ -276,8 +280,8 @@ export default class SiteAreaService {
     // Check request data is valid
     UtilsService.checkIfSiteAreaValid(filteredRequest, req);
     // Check auth
-    const authorizationFilters = await AuthorizationService.checkAndGetSiteAreaAuthorizationFilters(req.tenant, req.user,
-      filteredRequest, Action.CREATE);
+    const authorizationFilters = await AuthorizationService.checkAndGetSiteAreaAuthorizations(req.tenant, req.user,
+      {}, Action.CREATE, filteredRequest as SiteArea);
     if (!authorizationFilters.authorized) {
       throw new AppAuthError({
         errorCode: HTTPAuthError.FORBIDDEN,
@@ -287,8 +291,9 @@ export default class SiteAreaService {
       });
     }
     // Check Site auth
-    await UtilsService.checkAndGetSiteAuthorization(req.tenant, req.user, filteredRequest.siteID, Action.READ,
-      action, {});
+    await UtilsService.checkAndGetSiteAuthorization(
+      req.tenant, req.user, filteredRequest.siteID, Action.READ,
+      action);
     // Create Site Area
     const newSiteArea: SiteArea = {
       ...filteredRequest,
@@ -297,7 +302,7 @@ export default class SiteAreaService {
       createdOn: new Date()
     } as SiteArea;
     // Save
-    newSiteArea.id = await SiteAreaStorage.saveSiteArea(req.user.tenantID, newSiteArea, true);
+    newSiteArea.id = await SiteAreaStorage.saveSiteArea(req.tenant, newSiteArea, true);
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
       user: req.user, module: MODULE_NAME, method: 'handleCreateSiteArea',
@@ -318,14 +323,14 @@ export default class SiteAreaService {
     const filteredRequest = SiteAreaSecurity.filterSiteAreaUpdateRequest(req.body);
     // Check Mandatory fields
     UtilsService.checkIfSiteAreaValid(filteredRequest, req);
-    // Check Site auth
-    await UtilsService.checkAndGetSiteAuthorization(
-      req.tenant, req.user, filteredRequest.siteID, Action.READ, action, {});
     // Check and Get SiteArea
     const siteArea = await UtilsService.checkAndGetSiteAreaAuthorization(
-      req.tenant, req.user, filteredRequest.id, Action.UPDATE, action, {
+      req.tenant, req.user, filteredRequest.id, Action.UPDATE, action, filteredRequest as SiteArea, {
         withChargingStations: true,
-      });
+      }, false, true);
+    // Check Site auth
+    await UtilsService.checkAndGetSiteAuthorization(
+      req.tenant, req.user, filteredRequest.siteID, Action.READ, action);
     // Update
     siteArea.name = filteredRequest.name;
     siteArea.address = filteredRequest.address;
@@ -355,7 +360,7 @@ export default class SiteAreaService {
     let actionsResponse: ActionsResponse;
     if (siteArea.smartCharging && !filteredRequest.smartCharging) {
       actionsResponse = await OCPPUtils.clearAndDeleteChargingProfilesForSiteArea(
-        req.user.tenantID, siteArea,
+        req.tenant, siteArea,
         { profilePurposeType: ChargingProfilePurposeType.TX_PROFILE });
     }
     siteArea.smartCharging = filteredRequest.smartCharging;
@@ -364,16 +369,16 @@ export default class SiteAreaService {
     siteArea.lastChangedBy = { 'id': req.user.id };
     siteArea.lastChangedOn = new Date();
     // Save
-    await SiteAreaStorage.saveSiteArea(req.user.tenantID, siteArea, Utils.objectHasProperty(filteredRequest, 'image'));
+    await SiteAreaStorage.saveSiteArea(req.tenant, siteArea, Utils.objectHasProperty(filteredRequest, 'image'));
     // Retrigger Smart Charging
     if (filteredRequest.smartCharging) {
       // FIXME: the lock acquisition can wait for 30s before timeout and the whole code execution timeout at 3s
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       setTimeout(async () => {
-        const siteAreaLock = await LockingHelper.tryCreateSiteAreaSmartChargingLock(req.user.tenantID, siteArea, 30 * 1000);
+        const siteAreaLock = await LockingHelper.acquireSiteAreaSmartChargingLock(req.user.tenantID, siteArea, 30);
         if (siteAreaLock) {
           try {
-            const smartCharging = await SmartChargingFactory.getSmartChargingImpl(req.user.tenantID);
+            const smartCharging = await SmartChargingFactory.getSmartChargingImpl(req.tenant);
             if (smartCharging) {
               await smartCharging.computeAndApplyChargingProfiles(siteArea);
             }
@@ -384,7 +389,7 @@ export default class SiteAreaService {
               module: MODULE_NAME, method: 'handleUpdateSiteArea',
               action: action,
               message: 'An error occurred while trying to call smart charging',
-              detailedMessages: { error: error.message, stack: error.stack }
+              detailedMessages: { error: error.stack }
             });
           } finally {
             // Release lock

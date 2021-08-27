@@ -11,6 +11,7 @@ import Cypher from '../../src/utils/Cypher';
 import Factory from '../factories/Factory';
 import Stripe from 'stripe';
 import StripeBillingIntegration from '../../src/integration/billing/stripe/StripeBillingIntegration';
+import Tenant from '../../src/types/Tenant';
 import TenantComponents from '../../src/types/TenantComponents';
 import TenantContext from './context/TenantContext';
 import TestConstants from './client/utils/TestConstants';
@@ -50,7 +51,8 @@ export default class StripeIntegrationTestData {
       ...Factory.user.build(),
       name: 'BILLING-TEST',
       firstName: 'Billing Integration Tests',
-      issuer: true
+      issuer: true,
+      locale: 'fr_FR'
     } as User;
     // Let's create a new user
     const userData = await this.adminUserService.createEntity(
@@ -59,24 +61,32 @@ export default class StripeIntegrationTestData {
     );
     assert(userData && userData.id, 'response should not be null');
     // Let's get the newly created user
-    this.dynamicUser = await UserStorage.getUser(this.getTenantID(), userData.id);
+    this.dynamicUser = await UserStorage.getUser(this.getTenant(), userData.id);
   }
 
   public async forceBillingSettings(immediateBilling: boolean): Promise<void> {
     // The tests requires some settings to be forced
-    this.billingImpl = await this.setBillingSystemValidCredentials(immediateBilling);
+    await this.setBillingSystemValidCredentials(immediateBilling);
     this.billingUser = await this.billingImpl.getUser(this.dynamicUser);
-    if (!this.billingUser && !FeatureToggles.isFeatureActive(Feature.BILLING_SYNC_USER)) {
-      this.billingUser = await this.billingImpl.forceSynchronizeUser(this.dynamicUser);
-    }
+    this.billingUser = await this.billingImpl.forceSynchronizeUser(this.dynamicUser);
     assert(this.billingUser, 'Billing user should not be null');
   }
 
-  public async setBillingSystemValidCredentials(immediateBilling: boolean) : Promise<StripeBillingIntegration> {
+  public async setBillingSystemValidCredentials(immediateBilling: boolean) : Promise<void> {
     const billingSettings = this.getLocalSettings(immediateBilling);
     await this.saveBillingSettings(billingSettings);
-    billingSettings.stripe.secretKey = await Cypher.encrypt(this.getTenantID(), billingSettings.stripe.secretKey);
-    const billingImpl = StripeBillingIntegration.getInstance(this.getTenantID(), billingSettings);
+    billingSettings.stripe.secretKey = await Cypher.encrypt(this.getTenant(), billingSettings.stripe.secretKey);
+    this.billingImpl = StripeBillingIntegration.getInstance(this.getTenant(), billingSettings);
+    assert(this.billingImpl, 'Billing implementation should not be null');
+  }
+
+  public async fakeLiveBillingSettings() : Promise<StripeBillingIntegration> {
+    const billingSettings = this.getLocalSettings(true);
+    const mode = 'live';
+    billingSettings.stripe.secretKey = `sk_${mode}_0234567890`;
+    billingSettings.stripe.publicKey = `pk_${mode}_0234567890`;
+    await this.saveBillingSettings(billingSettings);
+    const billingImpl = StripeBillingIntegration.getInstance(this.getTenant(), billingSettings);
     assert(billingImpl, 'Billing implementation should not be null');
     return billingImpl;
   }
@@ -264,7 +274,7 @@ export default class StripeIntegrationTestData {
 
   public async payDraftInvoice(draftInvoice: { id: string }, paymentShouldFail: boolean): Promise<void> {
     const draftInvoiceId = draftInvoice.id;
-    let billingInvoice: BillingInvoice = await BillingStorage.getInvoice(this.getTenantID(), draftInvoiceId);
+    let billingInvoice: BillingInvoice = await BillingStorage.getInvoice(this.tenantContext?.getTenant(), draftInvoiceId);
     // Let's attempt a payment using the default payment method
     billingInvoice = await this.billingImpl.chargeInvoice(billingInvoice);
     if (paymentShouldFail) {
@@ -283,10 +293,31 @@ export default class StripeIntegrationTestData {
     return tenantId;
   }
 
+  public getTenant(): Tenant {
+    return this.tenantContext?.getTenant();
+  }
+
   public getCustomerID(): string {
     const customerID = this.dynamicUser?.billingData?.customerID;
     assert(customerID, 'customer ID cannot be null');
     return customerID;
+  }
+
+  public async checkNoInvoices() : Promise<void> {
+    const response = await this.adminUserService.billingApi.readInvoices({}, { limit: 1, skip: 0 });
+    assert(response?.data?.result.length === 0, 'There should be no invoices with test billing data anymore');
+  }
+
+  public async checkNoUsersWithTestData() : Promise<void> {
+    // const response = await this.adminUserService.userApi.readAll({ withTestBillingData: true }, { limit: 1, skip: 0 });
+    // assert(response?.data?.result.length === 0, 'There should be no users with test billing data anymore');
+    const response = await UserStorage.getUsers(this.getTenant(), {
+      withTestBillingData: true
+    }, {
+      limit: 1,
+      skip: 0
+    }, ['id']);
+    assert(response?.result.length === 0, 'There should be no invoices with test billing data anymore');
   }
 
   public async checkForDraftInvoices(userId: string, expectedValue: number): Promise<number> {
@@ -331,16 +362,41 @@ export default class StripeIntegrationTestData {
     );
     assert(userData && userData.id, 'response should not be null');
     // Let's get the newly created user
-    const testUser = await UserStorage.getUser(this.getTenantID(), userData.id);
+    const testUser = await UserStorage.getUser(this.getTenant(), userData.id);
     expect(testUser.billingData).not.to.be.null;
     const corruptedBillingData: BillingUserData = {
       ...testUser.billingData,
       customerID: 'cus_corrupted_data'
     };
     // Let's update the billing data with an inconsistent customer ID
-    await UserStorage.saveUserBillingData(this.getTenantID(), testUser.id, corruptedBillingData);
+    await UserStorage.saveUserBillingData(this.getTenant(), testUser.id, corruptedBillingData);
     // Let's now try to repair the user data.
     const billingUser: BillingUser = await this.billingImpl.forceSynchronizeUser(user);
     expect(corruptedBillingData.customerID).to.not.be.eq(billingUser.billingData.customerID);
+  }
+
+  public async checkTestDataCleanup(successExpected: boolean): Promise<void> {
+    // await this.billingImpl.clearTestData();
+    const response = await this.adminUserService.billingApi.clearBillingTestData();
+    if (successExpected) {
+      // Check the response
+      assert(response?.data?.succeeded === true, 'The operation should succeed');
+      assert(!response?.data?.error, 'error should not be set');
+      assert(response?.data?.internalData, 'internalData should provide the new settings');
+      // Check the new billing settings
+      const newSettings: BillingSettings = response?.data?.internalData as BillingSettings;
+      assert(newSettings.billing.isTransactionBillingActivated === false, 'Transaction billing should be switched OFF');
+      assert(!newSettings.billing.taxID, 'taxID should not be set anymore');
+      assert(!newSettings.stripe.url, 'URL should not be set anymore');
+      assert(!newSettings.stripe.publicKey, 'publicKey should not be set anymore');
+      assert(!newSettings.stripe.secretKey, 'secretKey should not be set anymore');
+      // Check the invoices
+      await this.checkNoInvoices();
+      // Check the users
+      await this.checkNoUsersWithTestData();
+    } else {
+      assert(response?.data?.succeeded === false, 'The operation should fail');
+      assert(response?.data?.error, 'error should not be null');
+    }
   }
 }

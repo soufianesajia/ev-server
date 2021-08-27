@@ -1,4 +1,4 @@
-import global, { FilterParams } from '../../types/GlobalType';
+import global, { FilterParams, GroupParams } from '../../types/GlobalType';
 
 import Constants from '../../utils/Constants';
 import Consumption from '../../types/Consumption';
@@ -7,34 +7,36 @@ import { DataResult } from '../../types/DataResult';
 import DatabaseUtils from './DatabaseUtils';
 import DbParams from '../../types/database/DbParams';
 import Logging from '../../utils/Logging';
+import { SiteAreaValueTypes } from '../../types/SiteArea';
+import Tenant from '../../types/Tenant';
 import Utils from '../../utils/Utils';
 
 const MODULE_NAME = 'ConsumptionStorage';
 
 export default class ConsumptionStorage {
-  static async saveConsumption(tenantID: string, consumptionToSave: Consumption): Promise<string> {
+  static async saveConsumption(tenant: Tenant, consumptionToSave: Consumption): Promise<string> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveConsumption');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveConsumption');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Build
     const consumptionMDB = ConsumptionStorage.buildConsumptionMDB(consumptionToSave);
     // Modify
-    await global.database.getCollection<any>(tenantID, 'consumptions').findOneAndUpdate(
+    await global.database.getCollection<any>(tenant.id, 'consumptions').findOneAndUpdate(
       { '_id': consumptionMDB._id },
       { $set: consumptionMDB },
       { upsert: true });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveConsumption', uniqueTimerID, consumptionMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveConsumption', uniqueTimerID, consumptionMDB);
     // Return
     return consumptionMDB._id;
   }
 
-  static async saveConsumptions(tenantID: string, consumptionsToSave: Consumption[]): Promise<string[]> {
+  static async saveConsumptions(tenant: Tenant, consumptionsToSave: Consumption[]): Promise<string[]> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveConsumptions');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveConsumptions');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     const consumptionsMDB = [];
     for (const consumptionToSave of consumptionsToSave) {
       // Build
@@ -43,35 +45,35 @@ export default class ConsumptionStorage {
       consumptionsMDB.push(consumptionMDB);
     }
     // Insert
-    await global.database.getCollection<any>(tenantID, 'consumptions').insertMany(consumptionsMDB);
+    await global.database.getCollection<any>(tenant.id, 'consumptions').insertMany(consumptionsMDB);
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveConsumptions', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveConsumptions', uniqueTimerID, consumptionsToSave);
     // Return
     return consumptionsMDB.map((consumptionMDB) => consumptionMDB._id);
   }
 
-  static async deleteConsumptions(tenantID: string, transactionIDs: number[]): Promise<void> {
+  static async deleteConsumptions(tenant: Tenant, transactionIDs: number[]): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'deleteConsumptions');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'deleteConsumptions');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // DeleFte
-    await global.database.getCollection<any>(tenantID, 'consumptions')
+    await global.database.getCollection<any>(tenant.id, 'consumptions')
       .deleteMany({ 'transactionId': { $in: transactionIDs } });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'deleteConsumptions', uniqueTimerID, { transactionIDs });
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'deleteConsumptions', uniqueTimerID, { transactionIDs });
   }
 
-  static async getAssetConsumptions(tenantID: string, params: { assetID: string; startDate: Date; endDate: Date }, projectFields?: string[]): Promise<Consumption[]> {
+  static async getAssetConsumptions(tenant: Tenant, params: { assetID: string; startDate: Date; endDate: Date }, projectFields?: string[]): Promise<Consumption[]> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getAssetConsumptions');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getAssetConsumptions');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Create filters
     const filters: FilterParams = {};
     // ID
     if (params.assetID) {
-      filters.assetID = Utils.convertToObjectID(params.assetID);
+      filters.assetID = DatabaseUtils.convertToObjectID(params.assetID);
     }
     // Date provided?
     if (params.startDate || params.endDate) {
@@ -103,8 +105,8 @@ export default class ConsumptionStorage {
           hour: { '$hour': '$startedAt' },
           minute: { '$minute': '$startedAt' }
         },
-        instantWatts: { $sum: '$instantWatts' },
-        instantAmps: { $sum: '$instantAmps' },
+        instantWatts: { $avg: '$instantWatts' },
+        instantAmps: { $avg: '$instantAmps' },
         limitWatts: { $last: '$limitSiteAreaWatts' },
         limitAmps: { $last: '$limitSiteAreaAmps' },
         stateOfCharge: { $last: '$stateOfCharge' },
@@ -134,26 +136,64 @@ export default class ConsumptionStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const consumptionsMDB = await global.database.getCollection<Consumption>(tenantID, 'consumptions')
-      .aggregate(...aggregation, { allowDiskUse: true })
+    const consumptionsMDB = await global.database.getCollection<Consumption>(tenant.id, 'consumptions')
+      .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getAssetConsumptions', uniqueTimerID, consumptionsMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getAssetConsumptions', uniqueTimerID, consumptionsMDB);
     return consumptionsMDB;
   }
 
-  static async getSiteAreaConsumptions(tenantID: string,
-      params: { siteAreaID: string; startDate: Date; endDate: Date },
-      projectFields?: string[]): Promise<Consumption[]> {
+  static async getLastAssetConsumption(tenant: Tenant, params: { assetID: string }): Promise<Consumption> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getSiteAreaConsumptions');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getLastAssetConsumption');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
+    // Create Aggregation
+    const aggregation = [];
+    // Filters
+    aggregation.push({
+      $match: {
+        assetID: DatabaseUtils.convertToObjectID(params.assetID)
+      }
+    });
+    // Convert Object ID to string
+    DatabaseUtils.pushConvertObjectIDToString(aggregation, 'siteAreaID');
+    DatabaseUtils.pushConvertObjectIDToString(aggregation, 'siteID');
+    DatabaseUtils.pushConvertObjectIDToString(aggregation, 'userID');
+    DatabaseUtils.pushRenameDatabaseID(aggregation);
+    // Sort
+    aggregation.push({
+      $sort: { startedAt: -1 }
+    });
+    // Limit
+    aggregation.push({
+      $limit: 1
+    });
+    let consumption: Consumption = null;
+    // Read DB
+    const consumptionsMDB = await global.database.getCollection<Consumption>(tenant.id, 'consumptions')
+      .aggregate(aggregation, { allowDiskUse: true })
+      .toArray();
+    if (consumptionsMDB && consumptionsMDB.length > 0) {
+      consumption = consumptionsMDB[0];
+    }
+    // Debug
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getLastAssetConsumption', uniqueTimerID, consumptionsMDB);
+    return consumption;
+  }
+
+  static async getSiteAreaConsumptions(tenant: Tenant,
+      params: { siteAreaID: string; startDate: Date; endDate: Date }): Promise<Consumption[]> {
+    // Debug
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getSiteAreaConsumptions');
+    // Check
+    DatabaseUtils.checkTenantObject(tenant);
     // Create filters
     const filters: FilterParams = {};
     // ID
     if (params.siteAreaID) {
-      filters.siteAreaID = Utils.convertToObjectID(params.siteAreaID);
+      filters.siteAreaID = DatabaseUtils.convertToObjectID(params.siteAreaID);
     }
     // Date provided?
     if (params.startDate || params.endDate) {
@@ -175,17 +215,223 @@ export default class ConsumptionStorage {
         $match: filters
       });
     }
-    // Group consumption values per minute
-    aggregation.push({
-      $group: {
+
+    const facets = {};
+    // Specific filters for each type of data
+    const detailedGroups = [SiteAreaValueTypes.ASSET_CONSUMPTIONS,
+      SiteAreaValueTypes.ASSET_PRODUCTIONS,
+      SiteAreaValueTypes.CHARGING_STATION_CONSUMPTIONS,
+      SiteAreaValueTypes.NET_CONSUMPTIONS];
+
+    for (const detailedType of detailedGroups) {
+      // Create filters
+      const facetFilters: FilterParams = {};
+      // Type of query
+      if (detailedType === SiteAreaValueTypes.ASSET_CONSUMPTIONS) {
+        facetFilters.instantWatts = { '$gte': 0 };
+        facetFilters.assetID = { '$ne': null };
+      } else if (detailedType === SiteAreaValueTypes.ASSET_PRODUCTIONS) {
+        facetFilters.instantWatts = { '$lt': 0 };
+        facetFilters.assetID = { '$ne': null };
+      } else if (detailedType === SiteAreaValueTypes.CHARGING_STATION_CONSUMPTIONS) {
+        facetFilters.chargeBoxID = { '$ne': null };
+      }
+      // Create Aggregation
+      const facetAggregation = [];
+      // Filters
+      if (facetFilters) {
+        facetAggregation.push({
+          $match: facetFilters
+        });
+      }
+      // grouping fields
+      const groupFields: GroupParams = {
         _id: {
           year: { '$year': '$startedAt' },
           month: { '$month': '$startedAt' },
           day: { '$dayOfMonth': '$startedAt' },
           hour: { '$hour': '$startedAt' },
           minute: { '$minute': '$startedAt' }
+        }
+      };
+      if (detailedType === SiteAreaValueTypes.ASSET_CONSUMPTIONS) {
+        groupFields[SiteAreaValueTypes.ASSET_CONSUMPTION_WATTS] = { $sum: '$instantWatts' };
+        groupFields[SiteAreaValueTypes.ASSET_CONSUMPTION_AMPS] = { $sum: '$instantAmps' };
+      } else if (detailedType === SiteAreaValueTypes.ASSET_PRODUCTIONS) {
+        groupFields[SiteAreaValueTypes.ASSET_PRODUCTION_WATTS] = { $sum: '$instantWatts' };
+        groupFields[SiteAreaValueTypes.ASSET_PRODUCTION_AMPS] = { $sum: '$instantAmps' };
+      } else if (detailedType === SiteAreaValueTypes.CHARGING_STATION_CONSUMPTIONS) {
+        groupFields[SiteAreaValueTypes.CHARGING_STATION_CONSUMPTION_WATTS] = { $sum: '$instantWatts' };
+        groupFields[SiteAreaValueTypes.CHARGING_STATION_CONSUMPTION_AMPS] = { $sum: '$instantAmps' };
+      } else {
+        groupFields[SiteAreaValueTypes.NET_CONSUMPTION_WATTS] = { $sum: '$instantWatts' };
+        groupFields[SiteAreaValueTypes.NET_CONSUMPTION_AMPS] = { $sum: '$instantAmps' };
+        groupFields.limitWatts = { $last: '$limitSiteAreaWatts' };
+        groupFields.limitAmps = { $last: '$limitSiteAreaAmps' };
+      }
+      facetAggregation.push({
+        $group: groupFields
+      });
+      facets[detailedType] = facetAggregation;
+    }
+    // Group consumption values per minute
+    aggregation.push({
+      $facet: facets
+    });
+    // Push different facet pipeline data into one
+    aggregation.push({
+      $addFields: {
+        'allInOne': {
+          $setUnion: [
+            '$' + SiteAreaValueTypes.ASSET_CONSUMPTIONS,
+            '$' + SiteAreaValueTypes.ASSET_PRODUCTIONS,
+            '$' + SiteAreaValueTypes.CHARGING_STATION_CONSUMPTIONS,
+            '$' + SiteAreaValueTypes.NET_CONSUMPTIONS
+          ]
+        }
+      }
+    });
+    // Project only all in one array object
+    aggregation.push({
+      $project: {
+        'allInOne': 1
+      }
+    });
+    // Unwind the array
+    aggregation.push({
+      $unwind: {
+        path: '$allInOne',
+        preserveNullAndEmptyArrays: false
+      }
+    });
+    // Group and calculate sum of individual fields
+    const groupFields = {
+      _id: '$allInOne._id'
+    };
+    groupFields[SiteAreaValueTypes.ASSET_CONSUMPTION_WATTS] = { $sum: '$allInOne.' + SiteAreaValueTypes.ASSET_CONSUMPTION_WATTS };
+    groupFields[SiteAreaValueTypes.ASSET_CONSUMPTION_AMPS] = { $sum: '$allInOne.' + SiteAreaValueTypes.ASSET_CONSUMPTION_AMPS };
+    groupFields[SiteAreaValueTypes.ASSET_PRODUCTION_WATTS] = { $sum: { $multiply: ['$allInOne.' + SiteAreaValueTypes.ASSET_PRODUCTION_WATTS, -1] } };
+    groupFields[SiteAreaValueTypes.ASSET_PRODUCTION_AMPS] = { $sum: { $multiply: ['$allInOne.' + SiteAreaValueTypes.ASSET_PRODUCTION_AMPS, -1] } };
+    groupFields[SiteAreaValueTypes.CHARGING_STATION_CONSUMPTION_WATTS] = { $sum: '$allInOne.' + SiteAreaValueTypes.CHARGING_STATION_CONSUMPTION_WATTS };
+    groupFields[SiteAreaValueTypes.CHARGING_STATION_CONSUMPTION_AMPS] = { $sum: '$allInOne.' + SiteAreaValueTypes.CHARGING_STATION_CONSUMPTION_AMPS };
+    groupFields[SiteAreaValueTypes.NET_CONSUMPTION_WATTS] = { $sum: '$allInOne.' + SiteAreaValueTypes.NET_CONSUMPTION_WATTS };
+    groupFields[SiteAreaValueTypes.NET_CONSUMPTION_AMPS] = { $sum: '$allInOne.' + SiteAreaValueTypes.NET_CONSUMPTION_AMPS };
+    groupFields['limitWatts'] = { $last: '$allInOne.limitWatts' };
+    groupFields['limitAmps'] = { $last: '$allInOne.limitAmps' };
+    aggregation.push({
+      $group: groupFields
+    });
+    // Rebuild the date
+    aggregation.push({
+      $addFields: {
+        startedAt: {
+          $dateFromParts: {
+            'year': '$_id.year',
+            'month': '$_id.month',
+            'day': '$_id.day',
+            'hour': '$_id.hour',
+            'minute': '$_id.minute'
+          }
+        }
+      }
+    });
+    // Same date
+    // Convert instant watts / amps to absolute value
+    aggregation.push({
+      $addFields: {
+        endedAt: '$startedAt'
+      }
+    });
+    aggregation.push({
+      $sort: {
+        startedAt: 1
+      }
+    });
+
+    aggregation.push({
+      $project: {
+        _id: 0
+      }
+    });
+    // Read DB
+    const consumptionsMDB = await global.database.getCollection<Consumption>(tenant.id, 'consumptions')
+      .aggregate(aggregation, { allowDiskUse: true })
+      .toArray();
+    // Debug
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getSiteAreaConsumptions', uniqueTimerID, consumptionsMDB);
+    return consumptionsMDB;
+  }
+
+  static async getSiteAreaChargingStationConsumptions(tenant: Tenant,
+      params: { siteAreaID: string; startDate: Date; endDate: Date }, dbParams: DbParams = Constants.DB_PARAMS_MAX_LIMIT,
+      projectFields?: string[]): Promise<DataResult<Consumption>> {
+    // Debug
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getSiteAreaChargingStationConsumptions');
+    // Check
+    DatabaseUtils.checkTenantObject(tenant);
+    // Clone before updating the values
+    dbParams = Utils.cloneObject(dbParams);
+    // Check Limit
+    dbParams.limit = Utils.checkRecordLimit(dbParams.limit);
+    // Check Skip
+    dbParams.skip = Utils.checkRecordSkip(dbParams.skip);
+    // Sort
+    if (!dbParams.sort) {
+      dbParams.sort = { endedAt: 1 };
+    }
+    // Create Aggregation
+    const aggregation = [];
+    // Create filters
+    const filters: FilterParams = {};
+    // ID
+    if (params.siteAreaID) {
+      filters.siteAreaID = DatabaseUtils.convertToObjectID(params.siteAreaID);
+    }
+    // Date provided?
+    if (params.startDate || params.endDate) {
+      filters.endedAt = {};
+    }
+    // Start date
+    if (params.startDate) {
+      filters.endedAt.$gte = Utils.convertToDate(params.startDate);
+    }
+    // End date
+    if (params.endDate) {
+      filters.endedAt.$lte = Utils.convertToDate(params.endDate);
+    }
+    // Check that charging station is set
+    filters.chargeBoxID = { '$ne': null };
+    // Filters
+    if (filters) {
+      aggregation.push({
+        $match: filters
+      });
+    }
+    aggregation.push({
+      $sort: dbParams.sort
+    });
+    // Skip
+    aggregation.push({
+      $skip: dbParams.skip
+    });
+    // Limit
+    aggregation.push({
+      $limit: dbParams.limit
+    });
+    // Group consumption values per minute
+    aggregation.push({
+      $group: {
+        _id: {
+          year: { '$year': '$endedAt' },
+          month: { '$month': '$endedAt' },
+          day: { '$dayOfMonth': '$endedAt' },
+          hour: { '$hour': '$endedAt' },
+          minute: { '$minute': '$endedAt' }
         },
         instantWatts: { $sum: '$instantWatts' },
+        instantWattsL1: { $sum: '$instantWattsL1' },
+        instantWattsL2: { $sum: '$instantWattsL2' },
+        instantWattsL3: { $sum: '$instantWattsL3' },
         instantAmps: { $sum: '$instantAmps' },
         limitWatts: { $last: '$limitSiteAreaWatts' },
         limitAmps: { $last: '$limitSiteAreaAmps' }
@@ -194,43 +440,31 @@ export default class ConsumptionStorage {
     // Rebuild the date
     aggregation.push({
       $addFields: {
-        startedAt: {
+        endedAt: {
           $dateFromParts: { 'year': '$_id.year', 'month': '$_id.month', 'day': '$_id.day', 'hour': '$_id.hour', 'minute': '$_id.minute' }
         }
-      }
-    });
-    // Same date
-    aggregation.push({
-      $addFields: {
-        endedAt: '$startedAt'
-      }
-    });
-    // Convert Object ID to string
-    DatabaseUtils.pushConvertObjectIDToString(aggregation, 'siteID');
-    DatabaseUtils.pushConvertObjectIDToString(aggregation, 'siteAreaID');
-    DatabaseUtils.pushConvertObjectIDToString(aggregation, 'userID');
-    aggregation.push({
-      $sort: {
-        startedAt: 1
       }
     });
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields, ['_id']);
     // Read DB
-    const consumptionsMDB = await global.database.getCollection<Consumption>(tenantID, 'consumptions')
-      .aggregate(...aggregation, { allowDiskUse: true })
+    const consumptionsMDB = await global.database.getCollection<Consumption>(tenant.id, 'consumptions')
+      .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getSiteAreaConsumptions', uniqueTimerID, consumptionsMDB);
-    return consumptionsMDB;
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getSiteAreaChargingStationConsumptions', uniqueTimerID, consumptionsMDB);
+    return {
+      count: consumptionsMDB.length,
+      result: consumptionsMDB
+    };
   }
 
-  static async getTransactionConsumptions(tenantID: string, params: { transactionId: number },
+  static async getTransactionConsumptions(tenant: Tenant, params: { transactionId: number },
       dbParams: DbParams = Constants.DB_PARAMS_MAX_LIMIT, projectFields?: string[]): Promise<DataResult<Consumption>> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getTransactionConsumptions');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getTransactionConsumptions');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Clone before updating the values
     dbParams = Utils.cloneObject(dbParams);
     // Check Limit
@@ -267,22 +501,22 @@ export default class ConsumptionStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const consumptionsMDB = await global.database.getCollection<Consumption>(tenantID, 'consumptions')
+    const consumptionsMDB = await global.database.getCollection<Consumption>(tenant.id, 'consumptions')
       .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getTransactionConsumptions', uniqueTimerID, consumptionsMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getTransactionConsumptions', uniqueTimerID, consumptionsMDB);
     return {
       count: consumptionsMDB.length,
       result: consumptionsMDB
     };
   }
 
-  static async getLastTransactionConsumption(tenantID: string, params: { transactionId: number }): Promise<Consumption> {
+  static async getLastTransactionConsumption(tenant: Tenant, params: { transactionId: number }): Promise<Consumption> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getLastTransactionConsumption');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getLastTransactionConsumption');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Create Aggregation
     const aggregation = [];
     // Filters
@@ -306,22 +540,22 @@ export default class ConsumptionStorage {
     });
     let consumption: Consumption = null;
     // Read DB
-    const consumptionsMDB = await global.database.getCollection<Consumption>(tenantID, 'consumptions')
+    const consumptionsMDB = await global.database.getCollection<Consumption>(tenant.id, 'consumptions')
       .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     if (consumptionsMDB && consumptionsMDB.length > 0) {
       consumption = consumptionsMDB[0];
     }
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getLastTransactionConsumption', uniqueTimerID, consumptionsMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getLastTransactionConsumption', uniqueTimerID, consumptionsMDB);
     return consumption;
   }
 
-  static async getOptimizedTransactionConsumptions(tenantID: string, params: { transactionId: number }, projectFields?: string[]): Promise<Consumption[]> {
+  static async getOptimizedTransactionConsumptions(tenant: Tenant, params: { transactionId: number }, projectFields?: string[]): Promise<Consumption[]> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getOptimizedTransactionConsumptions');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getOptimizedTransactionConsumptions');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Create Aggregation
     const aggregation = [];
     // Filters
@@ -353,7 +587,7 @@ export default class ConsumptionStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const consumptionsMDB = await global.database.getCollection<any>(tenantID, 'consumptions')
+    const consumptionsMDB = await global.database.getCollection<any>(tenant.id, 'consumptions')
       .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     // TODO: Handle this coding into MongoDB request
@@ -391,7 +625,7 @@ export default class ConsumptionStorage {
     // Sort
     consumptions.sort((cons1, cons2) => cons1.endedAt.getTime() - cons2.endedAt.getTime());
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getOptimizedTransactionConsumptions', uniqueTimerID, consumptions);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getOptimizedTransactionConsumptions', uniqueTimerID, consumptions);
     return consumptions;
   }
 
@@ -414,9 +648,9 @@ export default class ConsumptionStorage {
       transactionId: Utils.convertToInt(consumption.transactionId),
       chargeBoxID: consumption.chargeBoxID,
       connectorId: Utils.convertToInt(consumption.connectorId),
-      siteAreaID: Utils.convertToObjectID(consumption.siteAreaID),
-      siteID: Utils.convertToObjectID(consumption.siteID),
-      assetID: Utils.convertToObjectID(consumption.assetID),
+      siteAreaID: DatabaseUtils.convertToObjectID(consumption.siteAreaID),
+      siteID: DatabaseUtils.convertToObjectID(consumption.siteID),
+      assetID: DatabaseUtils.convertToObjectID(consumption.assetID),
       consumptionWh: Utils.convertToFloat(consumption.consumptionWh),
       consumptionAmps: Utils.convertToFloat(consumption.consumptionAmps),
       cumulatedAmount: Utils.convertToFloat(consumption.cumulatedAmount),
@@ -447,7 +681,7 @@ export default class ConsumptionStorage {
       limitAmps: Utils.convertToInt(consumption.limitAmps),
       limitWatts: Utils.convertToInt(consumption.limitWatts),
       limitSource: consumption.limitSource,
-      userID: Utils.convertToObjectID(consumption.userID),
+      userID: DatabaseUtils.convertToObjectID(consumption.userID),
       smartChargingActive: Utils.convertToBoolean(consumption.smartChargingActive),
       limitSiteAreaWatts: consumption.limitSiteAreaWatts ? Utils.convertToInt(consumption.limitSiteAreaWatts) : null,
       limitSiteAreaAmps: consumption.limitSiteAreaAmps ? Utils.convertToInt(consumption.limitSiteAreaAmps) : null,

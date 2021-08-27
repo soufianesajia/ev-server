@@ -2,9 +2,7 @@
   "billing": {
     "generatedUser": "Utilizador criado para '{{email}}'",
     "chargingAtSiteArea": "Charging session: {{sessionID}} - Start Date: {{startDate}} at {startTime} - Energy Consumption: {{totalConsumption}} kWh at {{siteAreaName}}",
-    "chargingAtChargeBox": "Charging session: {{sessionID}} - Start Date: {{startDate}} at {{startTime}} - Energy Consumption: {{totalConsumption}} kWh at charging station {{chargeBoxID}}",
-    "chargingStopSiteArea": "Carregamento {{totalConsumption}} kWh na {{siteAreaName}} (terminado as {{stopTime}})",
-    "chargingStopChargeBox": "Carregamento {{totalConsumption}} kWh em curso na estação {{chargeBoxID}} (termiando as {{stopTime}})"
+    "chargingAtChargeBox": "Charging session: {{sessionID}} - Start Date: {{startDate}} at {{startTime}} - Energy Consumption: {{totalConsumption}} kWh at charging station {{chargeBoxID}}"
   },
   "chargers": {
     "chargeBoxSN": "Charge Box S/N",
@@ -142,11 +140,11 @@
     },
     "billingNewInvoicePaid": {
       "title": "New invoice paid",
-      "body": "Your invoice ({{invoiceNumber}}) amounting {{amount}}€ has been paid and is now available"
+      "body": "Your invoice ({{invoiceNumber}}) amounting {{amount}} has been paid and is now available"
     },
     "billingNewInvoiceOpen": {
       "title": "New invoice to pay",
-      "body": "A new invoice ({{invoiceNumber}}) amounting {{amount}}€ is now available. Please check your email to finalize the payment"
+      "body": "A new invoice ({{invoiceNumber}}) amounting {{amount}} is now available. Please check your email to finalize the payment"
     },
     "endUserErrorNotification": {
       "title": "Um utilizador reportou um erro",

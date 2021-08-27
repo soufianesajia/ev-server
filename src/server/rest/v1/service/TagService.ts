@@ -26,17 +26,15 @@ import { OCPITokenWhitelist } from '../../../../types/ocpi/OCPIToken';
 import OCPIUtils from '../../../ocpi/OCPIUtils';
 import { ServerAction } from '../../../../types/Server';
 import { StatusCodes } from 'http-status-codes';
-import TagSecurity from './security/TagSecurity';
 import TagStorage from '../../../../storage/mongodb/TagStorage';
 import TagValidator from '../validator/TagValidator';
 import Tenant from '../../../../types/Tenant';
 import TenantComponents from '../../../../types/TenantComponents';
-import TenantStorage from '../../../../storage/mongodb/TenantStorage';
 import TransactionStorage from '../../../../storage/mongodb/TransactionStorage';
-import UserStorage from '../../../../storage/mongodb/UserStorage';
 import UserToken from '../../../../types/UserToken';
 import UserValidator from '../validator/UserValidator';
 import Utils from '../../../../utils/Utils';
+import UtilsSecurity from './security/UtilsSecurity';
 import UtilsService from './UtilsService';
 import csvToJson from 'csvtojson/v2';
 
@@ -46,34 +44,31 @@ export default class TagService {
 
   public static async handleGetTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter request
-    const filteredRequest = TagSecurity.filterTagRequestByID(req.query);
+    const filteredRequest = TagValidator.getInstance().validateTagGetByID(req.query);
     // Check and Get Tag
-    const tag = await UtilsService.checkAndGetTagAuthorization(req.tenant, req.user, filteredRequest.ID, Action.READ, action,
-      { withUser: true }, true);
-    // Return
+    const tag = await UtilsService.checkAndGetTagAuthorization(
+      req.tenant, req.user, filteredRequest.ID, Action.READ, action, null, { withUser: filteredRequest.WithUser }, true);
     res.json(tag);
     next();
   }
 
   public static async handleGetTags(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
-    // Return
     res.json(await TagService.getTags(req));
     next();
   }
 
   public static async handleDeleteTags(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter
-    const tagsIDs = TagSecurity.filterTagRequestByIDs(req.body);
+    const tagsIDs = TagValidator.getInstance().validateTagsDelete(req.body).tagsIDs;
     // Delete
     const result = await TagService.deleteTags(req.tenant, action, req.user, tagsIDs);
-    // Return
     res.json({ ...result, ...Constants.REST_RESPONSE_SUCCESS });
     next();
   }
 
   public static async handleDeleteTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter
-    const filteredRequest = TagSecurity.filterTagRequestByID(req.query);
+    const filteredRequest = TagValidator.getInstance().validateTagGetByID(req.query);
     // Delete
     await TagService.deleteTags(req.tenant, action, req.user, [filteredRequest.ID]);
     // Return
@@ -83,12 +78,12 @@ export default class TagService {
 
   public static async handleCreateTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter
-    const filteredRequest = TagSecurity.filterTagCreateRequest(req.body, req.user);
+    const filteredRequest = TagValidator.getInstance().validateTagCreate(req.body);
     // Check
     UtilsService.checkIfUserTagIsValid(filteredRequest, req);
     // Get dynamic auth
-    const authorizationFilter = await AuthorizationService.checkAndGetTagAuthorizationFilters(req.tenant, req.user,
-      filteredRequest, Action.CREATE);
+    const authorizationFilter = await AuthorizationService.checkAndGetTagAuthorizations(
+      req.tenant, req.user, {}, Action.CREATE, filteredRequest);
     if (!authorizationFilter.authorized) {
       throw new AppAuthError({
         errorCode: HTTPAuthError.FORBIDDEN,
@@ -97,8 +92,8 @@ export default class TagService {
         module: MODULE_NAME, method: 'handleCreateTag'
       });
     }
-    // Check Tag
-    let tag = await TagStorage.getTag(req.user.tenantID, filteredRequest.id.toUpperCase());
+    // Check Tag with ID
+    let tag = await TagStorage.getTag(req.tenant, filteredRequest.id.toUpperCase());
     if (tag) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -109,20 +104,21 @@ export default class TagService {
         action: action
       });
     }
-    // Check Tag
-    tag = await TagStorage.getTagByVisualID(req.user.tenantID, filteredRequest.visualID);
+    // Check Tag with Visual ID
+    tag = await TagStorage.getTagByVisualID(req.tenant, filteredRequest.visualID);
     if (tag) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
         errorCode: HTTPError.TAG_VISUAL_ID_ALREADY_EXIST_ERROR,
-        message: `Tag with visual ID '${filteredRequest.id}' already exists`,
+        message: `Tag with visual ID '${filteredRequest.visualID}' already exists`,
         module: MODULE_NAME, method: 'handleCreateTag',
         user: req.user,
         action: action
       });
     }
-    const transactions = await TransactionStorage.getTransactions(req.user.tenantID,
-      { tagIDs: [filteredRequest.id.toUpperCase()], hasUserID: true }, Constants.DB_PARAMS_SINGLE_RECORD);
+    // Check if Tag has been already used
+    const transactions = await TransactionStorage.getTransactions(req.tenant,
+      { tagIDs: [filteredRequest.id.toUpperCase()], hasUserID: true }, Constants.DB_PARAMS_SINGLE_RECORD, ['id']);
     if (!Utils.isEmptyArray(transactions.result)) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -133,43 +129,20 @@ export default class TagService {
         action: action
       });
     }
-    // Get User authorization filters
-    const authorizationUserFilters = await AuthorizationService.checkAndGetUserAuthorizationFilters(
-      req.tenant, req.user, { ID: filteredRequest.userID });
-    // Get the user
-    const user = await UserStorage.getUser(req.user.tenantID, filteredRequest.userID,
-      {
-        withImage: true,
-        ...authorizationUserFilters.filters
-      },
-      authorizationUserFilters.projectFields
-    );
-    // Check User
-    UtilsService.assertObjectExists(action, user, `User ID '${filteredRequest.userID}' does not exist`,
-      MODULE_NAME, 'handleCreateTag', req.user);
-    // Only current organization User can be assigned to Tag
-    if (!user.issuer) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.GENERAL_ERROR,
-        message: `User not issued by the organization cannot be assigned to Tag ID '${tag.id}'`,
-        module: MODULE_NAME, method: 'handleCreateTag',
-        user: req.user, actionOnUser: user,
-        action: action
-      });
-    }
-    // Clear default tag
+    // Get User
+    const user = await UtilsService.checkAndGetUserAuthorization(req.tenant, req.user, filteredRequest.userID,
+      Action.READ, ServerAction.TAG_CREATE);
+    // Default tag?
     if (filteredRequest.default) {
-      await TagStorage.clearDefaultUserTag(req.user.tenantID, filteredRequest.userID);
-    }
-    // Check default Tag
-    if (!filteredRequest.default) {
-      // Check if another one is the default
-      const defaultTag = await TagStorage.getDefaultUserTag(req.user.tenantID, filteredRequest.userID, {
+      // Clear
+      await TagStorage.clearDefaultUserTag(req.tenant, filteredRequest.userID);
+    // Check if another one is the default
+    } else {
+      const defaultTag = await TagStorage.getDefaultUserTag(req.tenant, filteredRequest.userID, {
         issuer: true,
       });
+      // No default tag: Force default
       if (!defaultTag) {
-        // Force default Tag
         filteredRequest.default = true;
       }
     }
@@ -186,34 +159,9 @@ export default class TagService {
       visualID: filteredRequest.visualID
     } as Tag;
     // Save
-    await TagStorage.saveTag(req.user.tenantID, newTag);
-    // Synchronize badges with IOP
-    if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI)) {
-      try {
-        const tenant = await TenantStorage.getTenant(req.user.tenantID);
-        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
-        if (ocpiClient) {
-          await ocpiClient.pushToken({
-            uid: newTag.id,
-            type: OCPIUtils.getOCPITokenTypeFromID(newTag.id),
-            auth_id: newTag.userID,
-            visual_number: newTag.userID,
-            issuer: tenant.name,
-            valid: true,
-            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
-            last_updated: new Date()
-          });
-        }
-      } catch (error) {
-        await Logging.logError({
-          tenantID: req.user.tenantID,
-          action: action,
-          module: MODULE_NAME, method: 'handleCreateTag',
-          message: `Unable to synchronize tokens of user ${filteredRequest.userID} with IOP`,
-          detailedMessages: { error: error.message, stack: error.stack }
-        });
-      }
-    }
+    await TagStorage.saveTag(req.tenant, newTag);
+    // OCPI
+    await TagService.updateTagOCPI(action, req.tenant, req.user, newTag);
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
       action: action,
@@ -228,56 +176,33 @@ export default class TagService {
 
   public static async handleUpdateTag(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter
-    const filteredRequest = TagSecurity.filterTagUpdateRequest({ ...req.params, ...req.body }, req.user);
+    const filteredRequest = TagValidator.getInstance().validateTagUpdate({ ...req.params, ...req.body });
     // Check
     UtilsService.checkIfUserTagIsValid(filteredRequest, req);
     // Check and Get Tag
     const tag = await UtilsService.checkAndGetTagAuthorization(req.tenant, req.user, filteredRequest.id, Action.UPDATE, action,
-      { withNbrTransactions: true, withUser: true }, true);
-    // Get User authorization filters
-    const authorizationUserFilters = await AuthorizationService.checkAndGetUserAuthorizationFilters(
-      req.tenant, req.user, { ID: filteredRequest.userID });
-    // Get the user
-    const user = await UserStorage.getUser(req.user.tenantID, filteredRequest.userID,
-      {
-        withImage: true,
-        ...authorizationUserFilters.filters
-      },
-      authorizationUserFilters.projectFields
-    );
-    // Check User
-    UtilsService.assertObjectExists(action, user, `User ID '${filteredRequest.userID}' does not exist`,
-      MODULE_NAME, 'handleUpdateTag', req.user);
+      filteredRequest, { withNbrTransactions: true, withUser: true }, true);
+    // Get User
+    const user = await UtilsService.checkAndGetUserAuthorization(req.tenant, req.user, filteredRequest.userID,
+      Action.READ, ServerAction.TAG_UPDATE);
+    // Check visualID uniqueness
     if (tag.visualID !== filteredRequest.visualID) {
-      // Check visualID uniqueness
-      const tagVisualID = await TagStorage.getTagByVisualID(req.user.tenantID, filteredRequest.visualID);
+      const tagVisualID = await TagStorage.getTagByVisualID(req.tenant, filteredRequest.visualID);
       if (tagVisualID) {
         throw new AppError({
           source: Constants.CENTRAL_SERVER,
           errorCode: HTTPError.TAG_VISUAL_ID_ALREADY_EXIST_ERROR,
-          message: `Tag with visual ID '${filteredRequest.id}' already exists`,
-          module: MODULE_NAME, method: 'handleCreateTag',
+          message: `Tag with Visual ID '${filteredRequest.id}' already exists`,
+          module: MODULE_NAME, method: 'handleUpdateTag',
           user: req.user,
           action: action
         });
       }
     }
-    // Only current organization User can be assigned to Tag
-    if (!user.issuer) {
-      throw new AppError({
-        source: Constants.CENTRAL_SERVER,
-        errorCode: HTTPError.GENERAL_ERROR,
-        message: `User not issued by the organization cannot be assigned to Tag ID '${tag.id}'`,
-        module: MODULE_NAME, method: 'handleUpdateTag',
-        user: req.user, actionOnUser: user,
-        action: action
-      });
-    }
     let formerTagUserID: string;
     let formerTagDefault: boolean;
-    // Check User reassignment
+    // Cannot change the User of a Badge that has already some transactions
     if (tag.userID !== filteredRequest.userID) {
-      // Has transactions
       if (tag.transactionsCount > 0) {
         throw new AppError({
           source: Constants.CENTRAL_SERVER,
@@ -291,17 +216,18 @@ export default class TagService {
       formerTagUserID = tag.userID;
       formerTagDefault = tag.default;
     }
+    // Clear User's default Tag
     if (filteredRequest.default && !formerTagUserID && (tag.default !== filteredRequest.default)) {
-      await TagStorage.clearDefaultUserTag(req.user.tenantID, filteredRequest.userID);
+      await TagStorage.clearDefaultUserTag(req.tenant, filteredRequest.userID);
     }
-    // Check default Tag
+    // Check default Tag existence
     if (!filteredRequest.default) {
       // Check if another one is the default
-      const defaultTag = await TagStorage.getDefaultUserTag(req.user.tenantID, filteredRequest.userID, {
+      const defaultTag = await TagStorage.getDefaultUserTag(req.tenant, filteredRequest.userID, {
         issuer: true,
       });
+      // Force default Tag
       if (!defaultTag) {
-        // Force default Tag
         filteredRequest.default = true;
       }
     }
@@ -314,54 +240,18 @@ export default class TagService {
     tag.lastChangedBy = { id: req.user.id };
     tag.lastChangedOn = new Date();
     // Save
-    await TagStorage.saveTag(req.user.tenantID, tag);
-    // Check former owner of the tag
+    await TagStorage.saveTag(req.tenant, tag);
+    // Ensure former User has a default Tag
     if (formerTagUserID && formerTagDefault) {
-      // Clear
-      await TagStorage.clearDefaultUserTag(req.user.tenantID, formerTagUserID);
-      // Check default tag
-      const activeTag = await TagStorage.getFirstActiveUserTag(req.user.tenantID, formerTagUserID, {
-        issuer: true
-      });
-      // Set default
-      if (activeTag) {
-        activeTag.default = true;
-        await TagStorage.saveTag(req.user.tenantID, activeTag);
-      }
+      await TagService.setDefaultTagForUser(req.tenant, formerTagUserID);
     }
-    // Synchronize badges with IOP
-    if (Utils.isComponentActiveFromToken(req.user, TenantComponents.OCPI) && (filteredRequest.userID !== tag.userID)) {
-      try {
-        const tenant = await TenantStorage.getTenant(req.user.tenantID);
-        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
-        if (ocpiClient) {
-          await ocpiClient.pushToken({
-            uid: tag.id,
-            type: OCPIUtils.getOCPITokenTypeFromID(tag.id),
-            auth_id: tag.userID,
-            visual_number: tag.userID,
-            issuer: tenant.name,
-            valid: tag.active,
-            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
-            last_updated: new Date()
-          });
-        }
-      } catch (error) {
-        await Logging.logError({
-          tenantID: req.user.tenantID,
-          action: action,
-          module: MODULE_NAME, method: 'handleUpdateTag',
-          user: req.user, actionOnUser: user,
-          message: `Unable to synchronize tokens of user ${filteredRequest.userID} with IOP`,
-          detailedMessages: { error: error.message, stack: error.stack }
-        });
-      }
-    }
+    // OCPI
+    await TagService.updateTagOCPI(action, req.tenant, req.user, tag);
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
       action: action,
       module: MODULE_NAME, method: 'handleUpdateTag',
-      message: `Tag with ID '${tag.id}'has been updated successfully`,
+      message: `Tag with ID '${tag.id}' has been updated successfully`,
       user: req.user, actionOnUser: user,
       detailedMessages: { tag: tag }
     });
@@ -372,7 +262,7 @@ export default class TagService {
   // eslint-disable-next-line @typescript-eslint/require-await
   public static async handleImportTags(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Check auth
-    if (!await Authorizations.canImportTags(req.user)) {
+    if (!(await Authorizations.canImportTags(req.user)).authorized) {
       throw new AppAuthError({
         errorCode: HTTPAuthError.FORBIDDEN,
         user: req.user,
@@ -381,7 +271,7 @@ export default class TagService {
       });
     }
     // Acquire the lock
-    const importTagsLock = await LockingHelper.createImportTagsLock(req.tenant.id);
+    const importTagsLock = await LockingHelper.acquireImportTagsLock(req.tenant.id);
     if (!importTagsLock) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -403,7 +293,7 @@ export default class TagService {
         inError: 0
       };
       // Delete all previously imported tags
-      await TagStorage.deleteImportedTags(req.user.tenantID);
+      await TagStorage.deleteImportedTags(req.tenant);
       // Get the stream
       const busboy = new Busboy({ headers: req.headers });
       req.pipe(busboy);
@@ -417,45 +307,143 @@ export default class TagService {
           await LockingManager.release(importTagsLock);
         }
       });
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      busboy.on('file', async (fieldname: string, file: any, filename: string, encoding: string, mimetype: string) => {
-        if (filename.slice(-4) === '.csv') {
-          const converter = csvToJson({
-            trim: true,
-            delimiter: Constants.CSV_SEPARATOR,
-            output: 'json',
-          });
-          void converter.subscribe(async (tag: ImportedTag) => {
-            // Check connection
-            if (connectionClosed) {
-              throw new Error('HTTP connection has been closed');
-            }
-            // Check the format of the first entry
-            if (!result.inSuccess && !result.inError) {
-              // Check header
-              const tagKeys = Object.keys(tag);
-              if (!TagRequiredImportProperties.every((property) => tagKeys.includes(property))) {
-                if (!res.headersSent) {
-                  res.writeHead(HTTPError.INVALID_FILE_CSV_HEADER_FORMAT);
-                  res.end();
-                }
-                throw new Error(`Missing one of required properties: '${TagRequiredImportProperties.join(', ')}'`);
+      await new Promise((resolve) => {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        busboy.on('file', async (fieldname: string, file: any, filename: string, encoding: string, mimetype: string) => {
+          if (filename.slice(-4) === '.csv') {
+            const converter = csvToJson({
+              trim: true,
+              delimiter: Constants.CSV_SEPARATOR,
+              output: 'json',
+            });
+            void converter.subscribe(async (tag: ImportedTag) => {
+              // Check connection
+              if (connectionClosed) {
+                throw new Error('HTTP connection has been closed');
               }
-            }
-            // Set default value
-            tag.importedBy = importedBy;
-            tag.importedOn = importedOn;
-            // Import
-            const importSuccess = await TagService.processTag(action, req, tag, tagsToBeImported);
-            if (!importSuccess) {
-              result.inError++;
-            }
-            // Insert batched
-            if (!Utils.isEmptyArray(tagsToBeImported) && (tagsToBeImported.length % Constants.IMPORT_BATCH_INSERT_SIZE) === 0) {
-              await TagService.insertTags(req.user.tenantID, req.user, action, tagsToBeImported, result);
-            }
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          }, async (error: CSVError) => {
+              // Check the format of the first entry
+              if (!result.inSuccess && !result.inError) {
+                // Check header
+                const tagKeys = Object.keys(tag);
+                if (!TagRequiredImportProperties.every((property) => tagKeys.includes(property))) {
+                  if (!res.headersSent) {
+                    res.writeHead(HTTPError.INVALID_FILE_CSV_HEADER_FORMAT);
+                    res.end();
+                    resolve();
+                  }
+                  throw new Error(`Missing one of required properties: '${TagRequiredImportProperties.join(', ')}'`);
+                }
+              }
+              // Set default value
+              tag.importedBy = importedBy;
+              tag.importedOn = importedOn;
+              tag.importedData = {
+                'autoActivateUserAtImport' : UtilsSecurity.filterBoolean(req.headers.autoactivateuseratimport),
+                'autoActivateTagAtImport' :  UtilsSecurity.filterBoolean(req.headers.autoactivatetagatimport)
+              };
+              // Import
+              const importSuccess = await TagService.processTag(action, req, tag, tagsToBeImported);
+              if (!importSuccess) {
+                result.inError++;
+              }
+              // Insert batched
+              if (!Utils.isEmptyArray(tagsToBeImported) && (tagsToBeImported.length % Constants.IMPORT_BATCH_INSERT_SIZE) === 0) {
+                await TagService.insertTags(req.tenant, req.user, action, tagsToBeImported, result);
+              }
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            }, async (error: CSVError) => {
+              // Release the lock
+              await LockingManager.release(importTagsLock);
+              // Log
+              await Logging.logError({
+                tenantID: req.user.tenantID,
+                module: MODULE_NAME, method: 'handleImportTags',
+                action: action,
+                user: req.user.id,
+                message: `Exception while parsing the CSV '${filename}': ${error.message}`,
+                detailedMessages: { error: error.stack }
+              });
+              if (!res.headersSent) {
+                res.writeHead(HTTPError.INVALID_FILE_FORMAT);
+                res.end();
+                resolve();
+              }
+              // Completed
+              // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            }, async () => {
+              // Consider the connection closed
+              connectionClosed = true;
+              // Insert batched
+              if (tagsToBeImported.length > 0) {
+                await TagService.insertTags(req.tenant, req.user, action, tagsToBeImported, result);
+              }
+              // Release the lock
+              await LockingManager.release(importTagsLock);
+              // Log
+              const executionDurationSecs = Utils.truncTo((new Date().getTime() - startTime) / 1000, 2);
+              await Logging.logActionsResponse(
+                req.user.tenantID, action,
+                MODULE_NAME, 'handleImportTags', result,
+                `{{inSuccess}} Tag(s) were successfully uploaded in ${executionDurationSecs}s and ready for asynchronous import`,
+                `{{inError}} Tag(s) failed to be uploaded in ${executionDurationSecs}s`,
+                `{{inSuccess}}  Tag(s) were successfully uploaded in ${executionDurationSecs}s and ready for asynchronous import and {{inError}} failed to be uploaded`,
+                `No Tag have been uploaded in ${executionDurationSecs}s`, req.user
+              );
+              // Create and Save async task
+              await AsyncTaskManager.createAndSaveAsyncTasks({
+                name: AsyncTasks.TAGS_IMPORT,
+                action: ServerAction.TAGS_IMPORT,
+                type: AsyncTaskType.TASK,
+                tenantID: req.tenant.id,
+                module: MODULE_NAME,
+                method: 'handleImportTags',
+              });
+              // Respond
+              res.json({ ...result, ...Constants.REST_RESPONSE_SUCCESS });
+              next();
+              resolve();
+            });
+            // Start processing the file
+            void file.pipe(converter);
+          } else if (mimetype === 'application/json') {
+            const parser = JSONStream.parse('tags.*');
+            // TODO: Handle the end of the process to send the data like the CSV
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            parser.on('data', async (tag: ImportedTag) => {
+              // Set default value
+              tag.importedBy = importedBy;
+              tag.importedOn = importedOn;
+              // Import
+              const importSuccess = await TagService.processTag(action, req, tag, tagsToBeImported);
+              if (!importSuccess) {
+                result.inError++;
+              }
+              // Insert batched
+              if ((tagsToBeImported.length % Constants.IMPORT_BATCH_INSERT_SIZE) === 0) {
+                await TagService.insertTags(req.tenant, req.user, action, tagsToBeImported, result);
+              }
+            });
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            parser.on('error', async (error) => {
+              // Release the lock
+              await LockingManager.release(importTagsLock);
+              // Log
+              await Logging.logError({
+                tenantID: req.user.tenantID,
+                module: MODULE_NAME, method: 'handleImportTags',
+                action: action,
+                user: req.user.id,
+                message: `Invalid Json file '${filename}'`,
+                detailedMessages: { error: error.stack }
+              });
+              if (!res.headersSent) {
+                res.writeHead(HTTPError.INVALID_FILE_FORMAT);
+                res.end();
+                resolve();
+              }
+            });
+            file.pipe(parser);
+          } else {
             // Release the lock
             await LockingManager.release(importTagsLock);
             // Log
@@ -464,102 +452,15 @@ export default class TagService {
               module: MODULE_NAME, method: 'handleImportTags',
               action: action,
               user: req.user.id,
-              message: `Exception while parsing the CSV '${filename}': ${error.message}`,
-              detailedMessages: { error: error.message, stack: error.stack }
+              message: `Invalid file format '${mimetype}'`
             });
             if (!res.headersSent) {
               res.writeHead(HTTPError.INVALID_FILE_FORMAT);
               res.end();
+              resolve();
             }
-          // Completed
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          }, async () => {
-            // Consider the connection closed
-            connectionClosed = true;
-            // Insert batched
-            if (tagsToBeImported.length > 0) {
-              await TagService.insertTags(req.user.tenantID, req.user, action, tagsToBeImported, result);
-            }
-            // Release the lock
-            await LockingManager.release(importTagsLock);
-            // Log
-            const executionDurationSecs = Utils.truncTo((new Date().getTime() - startTime) / 1000, 2);
-            await Logging.logActionsResponse(
-              req.user.tenantID, action,
-              MODULE_NAME, 'handleImportTags', result,
-              `{{inSuccess}} Tag(s) were successfully uploaded in ${executionDurationSecs}s and ready for asynchronous import`,
-              `{{inError}} Tag(s) failed to be uploaded in ${executionDurationSecs}s`,
-              `{{inSuccess}}  Tag(s) were successfully uploaded in ${executionDurationSecs}s and ready for asynchronous import and {{inError}} failed to be uploaded`,
-              `No Tag have been uploaded in ${executionDurationSecs}s`, req.user
-            );
-            // Create and Save async task
-            await AsyncTaskManager.createAndSaveAsyncTasks({
-              name: AsyncTasks.TAGS_IMPORT,
-              action: ServerAction.TAGS_IMPORT,
-              type: AsyncTaskType.TASK,
-              tenantID: req.tenant.id,
-              module: MODULE_NAME,
-              method: 'handleImportTags',
-            });
-            // Respond
-            res.json({ ...result, ...Constants.REST_RESPONSE_SUCCESS });
-            next();
-          });
-          // Start processing the file
-          void file.pipe(converter);
-        } else if (mimetype === 'application/json') {
-          const parser = JSONStream.parse('tags.*');
-          // TODO: Handle the end of the process to send the data like the CSV
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          parser.on('data', async (tag: ImportedTag) => {
-            // Set default value
-            tag.importedBy = importedBy;
-            tag.importedOn = importedOn;
-            // Import
-            const importSuccess = await TagService.processTag(action, req, tag, tagsToBeImported);
-            if (!importSuccess) {
-              result.inError++;
-            }
-            // Insert batched
-            if ((tagsToBeImported.length % Constants.IMPORT_BATCH_INSERT_SIZE) === 0) {
-              await TagService.insertTags(req.user.tenantID, req.user, action, tagsToBeImported, result);
-            }
-          });
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          parser.on('error', async (error) => {
-            // Release the lock
-            await LockingManager.release(importTagsLock);
-            // Log
-            await Logging.logError({
-              tenantID: req.user.tenantID,
-              module: MODULE_NAME, method: 'handleImportTags',
-              action: action,
-              user: req.user.id,
-              message: `Invalid Json file '${filename}'`,
-              detailedMessages: { error: error.message, stack: error.stack }
-            });
-            if (!res.headersSent) {
-              res.writeHead(HTTPError.INVALID_FILE_FORMAT);
-              res.end();
-            }
-          });
-          file.pipe(parser);
-        } else {
-          // Release the lock
-          await LockingManager.release(importTagsLock);
-          // Log
-          await Logging.logError({
-            tenantID: req.user.tenantID,
-            module: MODULE_NAME, method: 'handleImportTags',
-            action: action,
-            user: req.user.id,
-            message: `Invalid file format '${mimetype}'`
-          });
-          if (!res.headersSent) {
-            res.writeHead(HTTPError.INVALID_FILE_FORMAT);
-            res.end();
           }
-        }
+        });
       });
     } catch (error) {
       // Release the lock
@@ -570,7 +471,7 @@ export default class TagService {
 
   public static async handleExportTags(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Check auth
-    if (!await Authorizations.canExportTags(req.user)) {
+    if (!(await Authorizations.canExportTags(req.user)).authorized) {
       throw new AppAuthError({
         errorCode: HTTPAuthError.FORBIDDEN,
         user: req.user,
@@ -584,21 +485,21 @@ export default class TagService {
       TagService.convertToCSV.bind(this));
   }
 
-  private static async insertTags(tenantID: string, user: UserToken, action: ServerAction, tagsToBeImported: ImportedTag[], result: ActionsResponse): Promise<void> {
+  private static async insertTags(tenant: Tenant, user: UserToken, action: ServerAction, tagsToBeImported: ImportedTag[], result: ActionsResponse): Promise<void> {
     try {
-      const nbrInsertedTags = await TagStorage.saveImportedTags(tenantID, tagsToBeImported);
+      const nbrInsertedTags = await TagStorage.saveImportedTags(tenant, tagsToBeImported);
       result.inSuccess += nbrInsertedTags;
     } catch (error) {
       // Handle dup keys
       result.inSuccess += error.result.nInserted;
       result.inError += error.writeErrors.length;
       await Logging.logError({
-        tenantID: tenantID,
+        tenantID: tenant.id,
         module: MODULE_NAME, method: 'insertTags',
         action: action,
         user: user.id,
         message: `Cannot import ${error.writeErrors.length as number} tags!`,
-        detailedMessages: { error: error.message, stack: error.stack, tagsError: error.writeErrors }
+        detailedMessages: { error: error.stack, tagsError: error.writeErrors }
       });
     }
     tagsToBeImported.length = 0;
@@ -611,80 +512,30 @@ export default class TagService {
     };
     // Delete Tags
     for (const tagID of tagsIDs) {
-      // Check and Get Tag
-      const tag = await UtilsService.checkAndGetTagAuthorization(tenant, loggedUser, tagID, Action.DELETE, action,
-        { withUser: true }, true);
-      // Not Found
-      if (!tag) {
+      try {
+        // Check and Get Tag
+        const tag = await UtilsService.checkAndGetTagAuthorization(
+          tenant, loggedUser, tagID, Action.DELETE, action, null, { }, true);
+        // Delete OCPI
+        await TagService.checkAndDeleteTagOCPI(tenant, loggedUser, tag);
+        // Delete the Tag
+        await TagStorage.deleteTag(tenant, tag.id);
+        result.inSuccess++;
+        // Ensure User has a default Tag
+        if (tag.default) {
+          await TagService.setDefaultTagForUser(tenant, tag.userID);
+        }
+      } catch (error) {
         result.inError++;
         await Logging.logError({
-          tenantID: loggedUser.tenantID,
-          user: loggedUser,
-          module: MODULE_NAME, method: 'handleDeleteTags',
-          message: `Tag ID '${tagID}' does not exist`,
-          action: action,
-          detailedMessages: { tag }
+          tenantID: tenant.id,
+          module: MODULE_NAME, method: 'deleteTags',
+          action: ServerAction.TAG_DELETE,
+          message: `Unable to delete the Tag ID '${tagID}'`,
+          detailedMessages: { error: error.stack }
         });
-        continue;
-      }
-      if (!tag.issuer) {
-        result.inError++;
-        await Logging.logError({
-          tenantID: loggedUser.tenantID,
-          user: loggedUser,
-          module: MODULE_NAME, method: 'handleDeleteTags',
-          message: `Tag ID '${tag.id}' not issued by the organization`,
-          action: action,
-          detailedMessages: { tag }
-        });
-        continue;
-      }
-      // OCPI
-      if (Utils.isComponentActiveFromToken(loggedUser, TenantComponents.OCPI)) {
-        try {
-          const issuerTenant = await TenantStorage.getTenant(loggedUser.tenantID);
-          const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(issuerTenant, OCPIRole.EMSP) as EmspOCPIClient;
-          if (ocpiClient) {
-            await ocpiClient.pushToken({
-              uid: tag.id,
-              type: OCPIUtils.getOCPITokenTypeFromID(tag.id),
-              auth_id: tag.userID,
-              visual_number: tag.userID,
-              issuer: issuerTenant.name,
-              valid: false,
-              whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
-              last_updated: new Date()
-            });
-          }
-        } catch (error) {
-          await Logging.logError({
-            tenantID: loggedUser.tenantID,
-            module: MODULE_NAME, method: 'handleDeleteTags',
-            action: action,
-            message: `Unable to synchronize tokens of user ${tag.userID} with IOP`,
-            detailedMessages: { error: error.message, stack: error.stack }
-          });
-        }
-      }
-      // Delete the Tag
-      await TagStorage.deleteTag(loggedUser.tenantID, tag.id);
-      result.inSuccess++;
-      // Check if the default Tag has been deleted?
-      if (tag.default) {
-        // Clear default User's Tags
-        await TagStorage.clearDefaultUserTag(loggedUser.tenantID, tag.userID);
-        // Make the first active User's Tag
-        const firstActiveTag = await TagStorage.getFirstActiveUserTag(loggedUser.tenantID, tag.userID, {
-          issuer: true,
-        });
-        // Set it default
-        if (firstActiveTag) {
-          firstActiveTag.default = true;
-          await TagStorage.saveTag(loggedUser.tenantID, firstActiveTag);
-        }
       }
     }
-    // Log
     await Logging.logActionsResponse(loggedUser.tenantID,
       ServerAction.TAGS_DELETE,
       MODULE_NAME, 'handleDeleteTags', result,
@@ -696,13 +547,27 @@ export default class TagService {
     return result;
   }
 
+  private static async setDefaultTagForUser(tenant: Tenant, userID: string) {
+    // Clear default User's Tags
+    await TagStorage.clearDefaultUserTag(tenant, userID);
+    // Make the first active User's Tag
+    const firstActiveTag = await TagStorage.getFirstActiveUserTag(tenant, userID, {
+      issuer: true,
+    });
+    // Set it default
+    if (firstActiveTag) {
+      firstActiveTag.default = true;
+      await TagStorage.saveTag(tenant, firstActiveTag);
+    }
+  }
+
   private static convertToCSV(req: Request, tags: Tag[], writeHeader = true): string {
     let headers = null;
     // Header
     if (writeHeader) {
       headers = [
         'id',
-        'visual ID',
+        'visualID',
         'description',
         'firstName',
         'name',
@@ -726,38 +591,27 @@ export default class TagService {
 
   private static async getTags(req: Request): Promise<DataResult<Tag>> {
     // Filter
-    const filteredRequest = TagSecurity.filterTagsRequest(req.query);
+    const filteredRequest = TagValidator.getInstance().validateTagsGet(req.query);
     // Get authorization filters
-    const authorizationTagsFilters = await AuthorizationService.checkAndGetTagsAuthorizationFilters(
+    const authorizationTagsFilters = await AuthorizationService.checkAndGetTagsAuthorizations(
       req.tenant, req.user, filteredRequest);
     if (!authorizationTagsFilters.authorized) {
-      throw new AppAuthError({
-        errorCode: HTTPAuthError.FORBIDDEN,
-        user: req.user,
-        action: Action.LIST, entity: Entity.TAGS,
-        module: MODULE_NAME, method: 'getTags'
-      });
-    }
-    // Get authorization filters for users
-    const authorizationUsersFilters = await AuthorizationService.checkAndGetUsersAuthorizationFilters(
-      req.tenant, req.user, {});
-    if (authorizationUsersFilters.authorized) {
-      authorizationTagsFilters.projectFields.push('userID', 'user.id', 'user.name', 'user.firstName', 'user.email',
-        'createdBy.name', 'createdBy.firstName', 'lastChangedBy.name', 'lastChangedBy.firstName');
+      return Constants.DB_EMPTY_DATA_RESULT;
     }
     // Get the tags
-    const tags = await TagStorage.getTags(req.user.tenantID,
+    const tags = await TagStorage.getTags(req.tenant,
       {
         search: filteredRequest.Search,
         issuer: filteredRequest.Issuer,
         active: filteredRequest.Active,
         withUser: filteredRequest.WithUser,
+        userIDs: (filteredRequest.UserID ? filteredRequest.UserID.split('|') : null),
         ...authorizationTagsFilters.filters
       },
       {
         limit: filteredRequest.Limit,
         skip: filteredRequest.Skip,
-        sort: filteredRequest.SortFields,
+        sort: UtilsService.httpSortFieldsToMongoDB(filteredRequest.SortFields),
         onlyRecordCount: filteredRequest.OnlyRecordCount
       },
       authorizationTagsFilters.projectFields,
@@ -773,10 +627,8 @@ export default class TagService {
       const newImportedTag: ImportedTag = {
         id: importedTag.id.toUpperCase(),
         visualID: importedTag.visualID,
-        description: importedTag.description ? importedTag.description : `Badge ID '${importedTag.id}'`,
-        name: importedTag.name.toUpperCase(),
-        firstName: importedTag.firstName,
-        email: importedTag.email,
+        description: importedTag.description ? importedTag.description : `Tag ID '${importedTag.id}'`,
+        importedData: importedTag.importedData
       };
       // Validate Tag data
       TagValidator.getInstance().validateImportedTagCreation(newImportedTag);
@@ -784,22 +636,30 @@ export default class TagService {
       newImportedTag.importedBy = importedTag.importedBy;
       newImportedTag.importedOn = importedTag.importedOn;
       newImportedTag.status = ImportStatus.READY;
-      try {
-        UserValidator.getInstance().validateImportedUserCreation(newImportedTag as ImportedUser);
-      } catch (error) {
-        newImportedTag.email = '';
-        newImportedTag.name = '';
-        newImportedTag.firstName = '';
-        await Logging.logWarning({
-          tenantID: req.user.tenantID,
-          module: MODULE_NAME, method: 'processTag',
-          action: action,
-          message: `User cannot be imported tag ${newImportedTag.id}`,
-          detailedMessages: { tag: newImportedTag, error: error.message, stack: error.stack }
-        });
+      let tagToImport = newImportedTag;
+      // handle user part
+      if (importedTag.name && importedTag.firstName && importedTag.email) {
+        const newImportedUser: ImportedUser = {
+          name: importedTag.name.toUpperCase(),
+          firstName: importedTag.firstName,
+          email: importedTag.email,
+          siteIDs: importedTag.siteIDs
+        };
+        try {
+          UserValidator.getInstance().validateImportedUserCreation(newImportedUser);
+          tagToImport = { ...tagToImport, ...newImportedUser as ImportedTag };
+        } catch (error) {
+          await Logging.logWarning({
+            tenantID: req.user.tenantID,
+            module: MODULE_NAME, method: 'processTag',
+            action: action,
+            message: `User cannot be imported with tag ${newImportedTag.id}`,
+            detailedMessages: { tag: newImportedTag, error: error.message, stack: error.stack }
+          });
+        }
       }
       // Save it later on
-      tagsToBeImported.push(newImportedTag);
+      tagsToBeImported.push(tagToImport);
       return true;
     } catch (error) {
       await Logging.logError({
@@ -807,9 +667,68 @@ export default class TagService {
         module: MODULE_NAME, method: 'importTag',
         action: action,
         message: `Tag ID '${importedTag.id}' cannot be imported`,
-        detailedMessages: { tag: importedTag, error: error.message, stack: error.stack }
+        detailedMessages: { tag: importedTag, error: error.stack }
       });
       return false;
+    }
+  }
+
+  private static async checkAndDeleteTagOCPI(tenant: Tenant, loggedUser: UserToken, tag: Tag): Promise<void> {
+    // OCPI
+    if (Utils.isComponentActiveFromToken(loggedUser, TenantComponents.OCPI)) {
+      try {
+        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(tenant, OCPIRole.EMSP) as EmspOCPIClient;
+        if (ocpiClient) {
+          await ocpiClient.pushToken({
+            uid: tag.id,
+            type: OCPIUtils.getOCPITokenTypeFromID(tag.id),
+            auth_id: tag.userID,
+            visual_number: tag.visualID,
+            issuer: tenant.name,
+            valid: false,
+            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
+            last_updated: new Date()
+          });
+        }
+      } catch (error) {
+        await Logging.logError({
+          tenantID: tenant.id,
+          module: MODULE_NAME, method: 'checkAndDeleteTagOCPI',
+          action: ServerAction.TAG_DELETE,
+          message: `Unable to disable the Tag ID '${tag.id}' with the OCPI IOP`,
+          detailedMessages: { error: error.stack, tag }
+        });
+      }
+    }
+  }
+
+  private static async updateTagOCPI(action: ServerAction, tenant: Tenant, loggedUser: UserToken, tag: Tag) {
+    // Synchronize badges with IOP
+    if (Utils.isComponentActiveFromToken(loggedUser, TenantComponents.OCPI)) {
+      try {
+        const ocpiClient: EmspOCPIClient = await OCPIClientFactory.getAvailableOcpiClient(
+          tenant, OCPIRole.EMSP) as EmspOCPIClient;
+        if (ocpiClient) {
+          await ocpiClient.pushToken({
+            uid: tag.id,
+            type: OCPIUtils.getOCPITokenTypeFromID(tag.id),
+            auth_id: tag.userID,
+            visual_number: tag.visualID,
+            issuer: tenant.name,
+            valid: true,
+            whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
+            last_updated: new Date()
+          });
+        }
+      } catch (error) {
+        await Logging.logError({
+          tenantID: tenant.id,
+          action: action,
+          module: MODULE_NAME, method: 'updateTagOCPI',
+          message: `Unable to update the Tag ID '${tag.id}' with the OCPI IOP`,
+          detailedMessages: { error: error.stack }
+        });
+      }
     }
   }
 }

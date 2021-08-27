@@ -1,3 +1,4 @@
+import FeatureToggles, { Feature } from '../../utils/FeatureToggles';
 import Site, { SiteUser } from '../../types/Site';
 import User, { ImportedUser, UserRole, UserStatus } from '../../types/User';
 import { UserInError, UserInErrorType } from '../../types/InError';
@@ -14,8 +15,9 @@ import DbParams from '../../types/database/DbParams';
 import Eula from '../../types/Eula';
 import Logging from '../../utils/Logging';
 import Mustache from 'mustache';
-import { ObjectID } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import TagStorage from './TagStorage';
+import Tenant from '../../types/Tenant';
 import TenantComponents from '../../types/TenantComponents';
 import TenantStorage from './TenantStorage';
 import UserNotifications from '../../types/UserNotifications';
@@ -26,11 +28,11 @@ import moment from 'moment';
 const MODULE_NAME = 'UserStorage';
 
 export default class UserStorage {
-  public static async getEndUserLicenseAgreement(tenantID: string, language = 'en'): Promise<Eula> {
+  public static async getEndUserLicenseAgreement(tenant: Tenant, language = 'en'): Promise<Eula> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getEndUserLicenseAgreement');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getEndUserLicenseAgreement');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     let currentEulaHash: string;
     // Supported languages?
     if (!Constants.SUPPORTED_LANGUAGES.includes(language)) {
@@ -40,7 +42,7 @@ export default class UserStorage {
     // Get current eula
     const currentEula = UserStorage.getEndUserLicenseAgreementFromFile(language);
     // Read DB
-    const eulasMDB = await global.database.getCollection<Eula>(tenantID, 'eulas')
+    const eulasMDB = await global.database.getCollection<Eula>(tenant.id, 'eulas')
       .find({ 'language': language })
       .sort({ 'version': -1 })
       .limit(1)
@@ -61,14 +63,14 @@ export default class UserStorage {
           hash: currentEulaHash
         };
         // Create
-        await global.database.getCollection<Eula>(tenantID, 'eulas')
+        await global.database.getCollection<Eula>(tenant.id, 'eulas')
           .insertOne(eula);
         // Debug
-        await Logging.traceEnd(tenantID, MODULE_NAME, 'getEndUserLicenseAgreement', uniqueTimerID, eula);
+        await Logging.traceEnd(tenant.id, MODULE_NAME, 'getEndUserLicenseAgreement', uniqueTimerID, eula);
         return eula;
       }
       // Debug
-      await Logging.traceEnd(tenantID, MODULE_NAME, 'getEndUserLicenseAgreement', uniqueTimerID, eulaMDB);
+      await Logging.traceEnd(tenant.id, MODULE_NAME, 'getEndUserLicenseAgreement', uniqueTimerID, eulaMDB);
       return eulaMDB;
     }
     // Create default
@@ -80,35 +82,35 @@ export default class UserStorage {
       hash: Cypher.hash(currentEula)
     };
     // Create
-    await global.database.getCollection<Eula>(tenantID, 'eulas').insertOne(eula);
+    await global.database.getCollection<Eula>(tenant.id, 'eulas').insertOne(eula);
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getEndUserLicenseAgreement', uniqueTimerID, eula);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getEndUserLicenseAgreement', uniqueTimerID, eula);
     // Return
     return eula;
   }
 
-  public static async getUserByTagId(tenantID: string, tagID: string = Constants.UNKNOWN_STRING_ID): Promise<User> {
-    const tagMDB = await TagStorage.getTag(tenantID, tagID, { withUser: true });
+  public static async getUserByTagId(tenant: Tenant, tagID: string = Constants.UNKNOWN_STRING_ID): Promise<User> {
+    const tagMDB = await TagStorage.getTag(tenant, tagID, { withUser: true });
     return tagMDB ? tagMDB.user : null;
   }
 
-  public static async getUserByEmail(tenantID: string, email: string = Constants.UNKNOWN_STRING_ID): Promise<User> {
-    const userMDB = await UserStorage.getUsers(tenantID, {
+  public static async getUserByEmail(tenant: Tenant, email: string = Constants.UNKNOWN_STRING_ID): Promise<User> {
+    const userMDB = await UserStorage.getUsers(tenant, {
       email: email,
     }, Constants.DB_PARAMS_SINGLE_RECORD);
     return userMDB.count === 1 ? userMDB.result[0] : null;
   }
 
-  public static async getUserByPasswordResetHash(tenantID: string, passwordResetHash: string = Constants.UNKNOWN_STRING_ID): Promise<User> {
-    const userMDB = await UserStorage.getUsers(tenantID, {
+  public static async getUserByPasswordResetHash(tenant: Tenant, passwordResetHash: string = Constants.UNKNOWN_STRING_ID): Promise<User> {
+    const userMDB = await UserStorage.getUsers(tenant, {
       passwordResetHash: passwordResetHash
     }, Constants.DB_PARAMS_SINGLE_RECORD);
     return userMDB.count === 1 ? userMDB.result[0] : null;
   }
 
-  public static async getUser(tenantID: string, id: string = Constants.UNKNOWN_OBJECT_ID,
+  public static async getUser(tenant: Tenant, id: string = Constants.UNKNOWN_OBJECT_ID,
       params: { withImage?: boolean; siteIDs?: string[]; } = {}, projectFields?: string[]): Promise<User> {
-    const userMDB = await UserStorage.getUsers(tenantID, {
+    const userMDB = await UserStorage.getUsers(tenant, {
       userIDs: [id],
       withImage: params.withImage,
       siteIDs: params.siteIDs,
@@ -116,53 +118,53 @@ export default class UserStorage {
     return userMDB.count === 1 ? userMDB.result[0] : null;
   }
 
-  public static async getUserByBillingID(tenantID: string, billingID: string): Promise<User> {
-    const userMDB = await UserStorage.getUsers(tenantID, {
+  public static async getUserByBillingID(tenant: Tenant, billingID: string): Promise<User> {
+    const userMDB = await UserStorage.getUsers(tenant, {
       billingUserID: billingID
     }, Constants.DB_PARAMS_SINGLE_RECORD);
     return userMDB.count === 1 ? userMDB.result[0] : null;
   }
 
-  public static async getUserImage(tenantID: string, id: string): Promise<Image> {
+  public static async getUserImage(tenant: Tenant, id: string): Promise<Image> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getUserImage');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getUserImage');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Read DB
-    const userImageMDB = await global.database.getCollection<{ _id: ObjectID; image: string }>(tenantID, 'userimages')
-      .findOne({ _id: Utils.convertToObjectID(id) });
+    const userImageMDB = await global.database.getCollection<{ _id: ObjectId; image: string }>(tenant.id, 'userimages')
+      .findOne({ _id: DatabaseUtils.convertToObjectID(id) });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getUserImage', uniqueTimerID, userImageMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUserImage', uniqueTimerID, userImageMDB);
     return {
       id: id, image: (userImageMDB ? userImageMDB.image : null)
     };
   }
 
-  public static async removeSitesFromUser(tenantID: string, userID: string, siteIDs: string[]): Promise<void> {
+  public static async removeSitesFromUser(tenant: Tenant, userID: string, siteIDs: string[]): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'removeSitesFromUser');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'removeSitesFromUser');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // User provided?
     if (userID) {
       // At least one Site
       if (!Utils.isEmptyArray(siteIDs)) {
         // Create the lis
-        await global.database.getCollection<User>(tenantID, 'siteusers').deleteMany({
-          'userID': Utils.convertToObjectID(userID),
-          'siteID': { $in: siteIDs.map((siteID) => Utils.convertToObjectID(siteID)) }
+        await global.database.getCollection<User>(tenant.id, 'siteusers').deleteMany({
+          'userID': DatabaseUtils.convertToObjectID(userID),
+          'siteID': { $in: siteIDs.map((siteID) => DatabaseUtils.convertToObjectID(siteID)) }
         });
       }
     }
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'removeSitesFromUser', uniqueTimerID, siteIDs);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'removeSitesFromUser', uniqueTimerID, siteIDs);
   }
 
-  public static async addSitesToUser(tenantID: string, userID: string, siteIDs: string[]): Promise<void> {
+  public static async addSitesToUser(tenant: Tenant, userID: string, siteIDs: string[]): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'addSitesToUser');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'addSitesToUser');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // At least one Site
     if (!Utils.isEmptyArray(siteIDs)) {
       const siteUsersMDB = [];
@@ -170,23 +172,45 @@ export default class UserStorage {
       for (const siteID of siteIDs) {
         siteUsersMDB.push({
           '_id': Cypher.hash(`${siteID}~${userID}`),
-          'userID': Utils.convertToObjectID(userID),
-          'siteID': Utils.convertToObjectID(siteID),
+          'userID': DatabaseUtils.convertToObjectID(userID),
+          'siteID': DatabaseUtils.convertToObjectID(siteID),
           'siteAdmin': false
         });
       }
       // Execute
-      await global.database.getCollection<User>(tenantID, 'siteusers').insertMany(siteUsersMDB);
+      await global.database.getCollection<User>(tenant.id, 'siteusers').insertMany(siteUsersMDB);
     }
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'addSitesToUser', uniqueTimerID, siteIDs);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'addSitesToUser', uniqueTimerID, siteIDs);
   }
 
-  public static async saveUser(tenantID: string, userToSave: User, saveImage = false): Promise<string> {
+  public static async addSiteToUser(tenant: Tenant, userID: string, siteID: string): Promise<string> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUser');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'addSitesToUser');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
+    const siteUserMDB = {
+      '_id': Cypher.hash(`${siteID}~${userID}`),
+      'userID': DatabaseUtils.convertToObjectID(userID),
+      'siteID': DatabaseUtils.convertToObjectID(siteID),
+      'siteAdmin': false
+    };
+    // Execute
+    await global.database.getCollection<User>(tenant.id, 'siteusers').findOneAndUpdate(
+      { userID: siteUserMDB.userID, siteID: siteUserMDB.siteID },
+      { $set: siteUserMDB },
+      { upsert: true }
+    );
+    // Debug
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUser', uniqueTimerID, siteID);
+    return siteUserMDB._id;
+  }
+
+  public static async saveUser(tenant: Tenant, userToSave: User, saveImage = false): Promise<string> {
+    // Debug
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUser');
+    // Check Tenant
+    DatabaseUtils.checkTenantObject(tenant);
     // Check if ID or email is provided
     if (!userToSave.id && !userToSave.email) {
       throw new BackendError({
@@ -199,14 +223,14 @@ export default class UserStorage {
     // Build Request
     const userFilter: any = {};
     if (userToSave.id) {
-      userFilter._id = Utils.convertToObjectID(userToSave.id);
+      userFilter._id = DatabaseUtils.convertToObjectID(userToSave.id);
     } else {
       userFilter.email = userToSave.email;
     }
     // Properties to save
     // eslint-disable-next-line prefer-const
     const userMDB: any = {
-      _id: userToSave.id ? Utils.convertToObjectID(userToSave.id) : new ObjectID(),
+      _id: userToSave.id ? DatabaseUtils.convertToObjectID(userToSave.id) : new ObjectId(),
       issuer: Utils.convertToBoolean(userToSave.issuer),
       name: userToSave.name,
       firstName: userToSave.firstName,
@@ -216,6 +240,7 @@ export default class UserStorage {
       locale: userToSave.locale,
       iNumber: userToSave.iNumber,
       costCenter: userToSave.costCenter,
+      importedData: userToSave.importedData,
       notificationsActive: userToSave.notificationsActive,
       notifications: {
         sendSessionStarted: userToSave.notifications ? Utils.convertToBoolean(userToSave.notifications.sendSessionStarted) : false,
@@ -260,206 +285,210 @@ export default class UserStorage {
     // Check Created/Last Changed By
     DatabaseUtils.addLastChangedCreatedProps(userMDB, userToSave);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
       userFilter,
       { $set: userMDB },
       { upsert: true, returnDocument: 'after' });
     // Delegate saving image as well if specified
     if (saveImage) {
-      await UserStorage.saveUserImage(tenantID, userMDB._id.toHexString(), userToSave.image);
+      await UserStorage.saveUserImage(tenant, userMDB._id.toString(), userToSave.image);
     }
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUser', uniqueTimerID, userMDB);
-    return userMDB._id.toHexString();
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUser', uniqueTimerID, userMDB);
+    return userMDB._id.toString();
   }
 
-  public static async saveImportedUser(tenantID: string, importedUserToSave: ImportedUser): Promise<string> {
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveImportedUser');
+  public static async saveImportedUser(tenant: Tenant, importedUserToSave: ImportedUser): Promise<string> {
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveImportedUser');
     const userMDB = {
-      _id: importedUserToSave.id ? Utils.convertToObjectID(importedUserToSave.id) : new ObjectID(),
+      _id: importedUserToSave.id ? DatabaseUtils.convertToObjectID(importedUserToSave.id) : new ObjectId(),
       email: importedUserToSave.email,
       firstName: importedUserToSave.firstName,
       name: importedUserToSave.name,
       status: importedUserToSave.status,
       errorDescription: importedUserToSave.errorDescription,
       importedOn: Utils.convertToDate(importedUserToSave.importedOn),
-      importedBy: Utils.convertToObjectID(importedUserToSave.importedBy)
+      importedBy: DatabaseUtils.convertToObjectID(importedUserToSave.importedBy),
+      importedData: importedUserToSave.importedData,
+      siteIDs: importedUserToSave.siteIDs,
     };
-    await global.database.getCollection<any>(tenantID, 'importedusers').findOneAndUpdate(
+    await global.database.getCollection<any>(tenant.id, 'importedusers').findOneAndUpdate(
       { _id: userMDB._id },
       { $set: userMDB },
       { upsert: true, returnDocument: 'after' }
     );
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveImportedUser', uniqueTimerID, userMDB);
-    return userMDB._id.toHexString();
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveImportedUser', uniqueTimerID, userMDB);
+    return userMDB._id.toString();
   }
 
-  public static async saveImportedUsers(tenantID: string, importedUsersToSave: ImportedUser[]): Promise<number> {
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveImportedUsers');
+  public static async saveImportedUsers(tenant: Tenant, importedUsersToSave: ImportedUser[]): Promise<number> {
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveImportedUsers');
     const importedUsersToSaveMDB: any = importedUsersToSave.map((importedUserToSave) => ({
-      _id: importedUserToSave.id ? Utils.convertToObjectID(importedUserToSave.id) : new ObjectID(),
+      _id: importedUserToSave.id ? DatabaseUtils.convertToObjectID(importedUserToSave.id) : new ObjectId(),
       email: importedUserToSave.email,
       firstName: importedUserToSave.firstName,
       name: importedUserToSave.name,
       status: importedUserToSave.status,
       errorDescription: importedUserToSave.errorDescription,
       importedOn: Utils.convertToDate(importedUserToSave.importedOn),
-      importedBy: Utils.convertToObjectID(importedUserToSave.importedBy)
+      importedBy: DatabaseUtils.convertToObjectID(importedUserToSave.importedBy),
+      importedData: importedUserToSave.importedData,
+      siteIDs: importedUserToSave.siteIDs,
     }));
     // Insert all at once
-    const result = await global.database.getCollection<any>(tenantID, 'importedusers').insertMany(
+    const result = await global.database.getCollection<any>(tenant.id, 'importedusers').insertMany(
       importedUsersToSaveMDB,
       { ordered: false }
     );
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveImportedUsers', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveImportedUsers', uniqueTimerID, importedUsersToSave);
     return result.insertedCount;
   }
 
-  public static async deleteImportedUser(tenantID: string, importedUserID: string): Promise<void> {
+  public static async deleteImportedUser(tenant: Tenant, importedUserID: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'deleteImportedUser');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'deleteImportedUser');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Delete
-    await global.database.getCollection<any>(tenantID, 'importedusers').deleteOne(
+    await global.database.getCollection<any>(tenant.id, 'importedusers').deleteOne(
       {
-        '_id': Utils.convertToObjectID(importedUserID),
+        '_id': DatabaseUtils.convertToObjectID(importedUserID),
       });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'deleteImportedUser', uniqueTimerID, { id: importedUserID });
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'deleteImportedUser', uniqueTimerID, { id: importedUserID });
   }
 
-  public static async deleteImportedUsers(tenantID: string): Promise<void> {
+  public static async deleteImportedUsers(tenant: Tenant): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'deleteImportedUsers');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'deleteImportedUsers');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Delete
-    await global.database.getCollection<any>(tenantID, 'importedusers').deleteMany({});
+    await global.database.getCollection<any>(tenant.id, 'importedusers').deleteMany({});
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'deleteImportedUsers', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'deleteImportedUsers', uniqueTimerID);
   }
 
-  public static async saveUserPassword(tenantID: string, userID: string,
+  public static async saveUserPassword(tenant: Tenant, userID: string,
       params: {
         password?: string; passwordResetHash?: string; passwordWrongNbrTrials?: number;
         passwordBlockedUntil?: Date;
       }): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserPassword');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserPassword');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: params });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserPassword', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserPassword', uniqueTimerID);
   }
 
-  public static async saveUserStatus(tenantID: string, userID: string, status: UserStatus): Promise<void> {
+  public static async saveUserStatus(tenant: Tenant, userID: string, status: UserStatus): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserStatus');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserStatus');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: { status } });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserStatus', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserStatus', uniqueTimerID);
   }
 
-  public static async saveUserLastSelectedCarID(tenantID: string, userID: string, lastSelectedCarID: string): Promise<void> {
+  public static async saveUserLastSelectedCarID(tenant: Tenant, userID: string, lastSelectedCarID: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserStatus');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserStatus');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: { lastSelectedCarID } });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserStatus', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserStatus', uniqueTimerID);
   }
 
-  public static async saveUserMobileToken(tenantID: string, userID: string,
+  public static async saveUserMobileToken(tenant: Tenant, userID: string,
       params: { mobileToken: string; mobileOs: string; mobileLastChangedOn: Date }): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserMobileToken');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserMobileToken');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: params });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserMobileToken', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserMobileToken', uniqueTimerID);
   }
 
-  public static async saveUserMobilePhone(tenantID: string, userID: string,
+  public static async saveUserMobilePhone(tenant: Tenant, userID: string,
       params: { mobile?: string; phone?: string; }): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserMobilePhone');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserMobilePhone');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: params });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserMobilePhone', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserMobilePhone', uniqueTimerID);
   }
 
-  public static async saveUserRole(tenantID: string, userID: string, role: string): Promise<void> {
+  public static async saveUserRole(tenant: Tenant, userID: string, role: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserRole');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserRole');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: { role } });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserRole', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserRole', uniqueTimerID);
   }
 
-  public static async saveUserEULA(tenantID: string, userID: string,
+  public static async saveUserEULA(tenant: Tenant, userID: string,
       params: { eulaAcceptedHash: string; eulaAcceptedOn: Date; eulaAcceptedVersion: number }): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserRole');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserRole');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: params });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserRole', uniqueTimerID, params);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserRole', uniqueTimerID, params);
   }
 
-  public static async saveUserAccountVerification(tenantID: string, userID: string,
+  public static async saveUserAccountVerification(tenant: Tenant, userID: string,
       params: { verificationToken?: string; verifiedAt?: Date }): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserAccountVerification');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserAccountVerification');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: params });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserAccountVerification', uniqueTimerID, params);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserAccountVerification', uniqueTimerID, params);
   }
 
-  public static async saveUserAdminData(tenantID: string, userID: string,
+  public static async saveUserAdminData(tenant: Tenant, userID: string,
       params: { plateID?: string; notificationsActive?: boolean; notifications?: UserNotifications }): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserAdminData');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserAdminData');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Set data
     const updatedUserMDB: any = {};
     // Set only provided values
@@ -473,41 +502,47 @@ export default class UserStorage {
       updatedUserMDB.notifications = params.notifications;
     }
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'users').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: updatedUserMDB });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserAdminData', uniqueTimerID, params);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserAdminData', uniqueTimerID, params);
   }
 
-  public static async saveUserBillingData(tenantID: string, userID: string, billingData: BillingUserData): Promise<void> {
+  public static async saveUserBillingData(tenant: Tenant, userID: string, billingData: BillingUserData): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserBillingData');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserBillingData');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
+    if (billingData) {
     // Set data
-    const updatedUserMDB: any = {
-      billingData: {
-        customerID: billingData.customerID,
-        liveMode: Utils.convertToBoolean(billingData.liveMode),
-        hasSynchroError: billingData.hasSynchroError,
-        invoicesLastSynchronizedOn: Utils.convertToDate(billingData.invoicesLastSynchronizedOn),
-        lastChangedOn: Utils.convertToDate(billingData.lastChangedOn),
-      }
-    };
-    // Modify and return the modified document
-    await global.database.getCollection(tenantID, 'users').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
-      { $set: updatedUserMDB });
+      const updatedUserMDB: any = {
+        billingData: {
+          customerID: billingData.customerID,
+          liveMode: Utils.convertToBoolean(billingData.liveMode),
+          hasSynchroError: billingData.hasSynchroError,
+          invoicesLastSynchronizedOn: Utils.convertToDate(billingData.invoicesLastSynchronizedOn),
+          lastChangedOn: Utils.convertToDate(billingData.lastChangedOn),
+        }
+      };
+      // Modify and return the modified document
+      await global.database.getCollection(tenant.id, 'users').findOneAndUpdate(
+        { '_id': DatabaseUtils.convertToObjectID(userID) },
+        { $set: updatedUserMDB });
+    } else {
+      await global.database.getCollection(tenant.id, 'users').findOneAndUpdate(
+        { '_id': DatabaseUtils.convertToObjectID(userID) },
+        { $unset: { billingData: '' } }); // This removes the field from the document
+    }
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserBillingData', uniqueTimerID, billingData);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserBillingData', uniqueTimerID, billingData);
   }
 
-  public static async saveUserImage(tenantID: string, userID: string, userImageToSave: string): Promise<void> {
+  public static async saveUserImage(tenant: Tenant, userID: string, userImageToSave: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveUserImage');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveUserImage');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Check if ID is provided
     if (!userID) {
       // ID must be provided!
@@ -519,27 +554,26 @@ export default class UserStorage {
       });
     }
     // Modify and return the modified document
-    await global.database.getCollection<any>(tenantID, 'userimages').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(userID) },
+    await global.database.getCollection<any>(tenant.id, 'userimages').findOneAndUpdate(
+      { '_id': DatabaseUtils.convertToObjectID(userID) },
       { $set: { image: userImageToSave } },
       { upsert: true, returnDocument: 'after' });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveUserImage', uniqueTimerID, userImageToSave);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveUserImage', uniqueTimerID, userImageToSave);
   }
 
-  public static async getUsers(tenantID: string,
+  public static async getUsers(tenant: Tenant,
       params: {
         notificationsActive?: boolean; siteIDs?: string[]; excludeSiteID?: string; search?: string;
-        includeCarUserIDs?: string[]; excludeUserIDs?: string[]; notAssignedToCarID?: string;
         userIDs?: string[]; email?: string; issuer?: boolean; passwordResetHash?: string; roles?: string[];
         statuses?: string[]; withImage?: boolean; billingUserID?: string; notSynchronizedBillingData?: boolean;
-        notifications?: any; noLoginSince?: Date; tagIDs?: string[];
+        withTestBillingData?: boolean; notifications?: any; noLoginSince?: Date;
       },
       dbParams: DbParams, projectFields?: string[]): Promise<DataResult<User>> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getUsers');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getUsers');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Clone before updating the values
     dbParams = Utils.cloneObject(dbParams);
     // Check Limit
@@ -560,15 +594,11 @@ export default class UserStorage {
     }
     // Users
     if (!Utils.isEmptyArray(params.userIDs)) {
-      filters._id = { $in: params.userIDs.map((userID) => Utils.convertToObjectID(userID)) };
+      filters._id = { $in: params.userIDs.map((userID) => DatabaseUtils.convertToObjectID(userID)) };
     }
     // Issuer
     if (Utils.objectHasProperty(params, 'issuer') && Utils.isBoolean(params.issuer)) {
       filters.issuer = params.issuer;
-    }
-    // Exclude Users
-    if (!Utils.isEmptyArray(params.excludeUserIDs)) {
-      filters._id = { $nin: params.excludeUserIDs.map((userID) => Utils.convertToObjectID(userID)) };
     }
     // Email
     if (params.email) {
@@ -613,56 +643,31 @@ export default class UserStorage {
         { $expr: { $gt: ['$lastChangedOn', '$billingData.lastChangedOn'] } }
       ];
     }
+    // Select users with test billing data
+    if (params.withTestBillingData) {
+      const expectedLiveMode = !params.withTestBillingData;
+      filters.$and = [
+        { 'billingData': { '$exists': true } },
+        { 'billingData.liveMode': { $eq: expectedLiveMode } }
+      ];
+    }
     // Add filters
     aggregation.push({
       $match: filters
     });
-    // Add additional filters
-    if (params.notAssignedToCarID) {
-      const notAssignedToCarIDFilter = { '$or': [] };
-      DatabaseUtils.pushUserCarLookupInAggregation({
-        tenantID, aggregation, localField: '_id', foreignField: 'userID', asField: 'carUsers'
-      });
-      // Add Car ID in OR
-      const carIDFilter = {};
-      carIDFilter['carUsers.carID'] = { $ne: Utils.convertToObjectID(params.notAssignedToCarID) };
-      notAssignedToCarIDFilter.$or.push(carIDFilter);
-      // Bypass Car ID if users has been removed in UI
-      if (params.includeCarUserIDs) {
-        const includeCarUserIDsFilter = {};
-        includeCarUserIDsFilter['carUsers.userID'] = {
-          $in: params.includeCarUserIDs.map((includeCarUserID) =>
-            Utils.convertToObjectID(includeCarUserID))
-        };
-        notAssignedToCarIDFilter.$or.push(includeCarUserIDsFilter);
-      }
-      // Add
-      aggregation.push({
-        $match: notAssignedToCarIDFilter
-      });
-    }
-    // Add Tags
-    if (params.tagIDs) {
-      DatabaseUtils.pushTagLookupInAggregation({
-        tenantID, aggregation, localField: '_id', foreignField: 'userID', asField: 'tag'
-      });
-      aggregation.push({
-        $match: { 'tag.id': { $in: params.tagIDs } }
-      });
-    }
     // Add Site
     if (params.siteIDs || params.excludeSiteID) {
       DatabaseUtils.pushSiteUserLookupInAggregation({
-        tenantID, aggregation, localField: '_id', foreignField: 'userID', asField: 'siteusers'
+        tenantID: tenant.id, aggregation, localField: '_id', foreignField: 'userID', asField: 'siteusers'
       });
       if (params.siteIDs) {
         aggregation.push({
-          $match: { 'siteusers.siteID': { $in: params.siteIDs.map((site) => Utils.convertToObjectID(site)) } }
+          $match: { 'siteusers.siteID': { $in: params.siteIDs.map((site) => DatabaseUtils.convertToObjectID(site)) } }
         });
       }
       if (params.excludeSiteID) {
         aggregation.push({
-          $match: { 'siteusers.siteID': { $ne: Utils.convertToObjectID(params.excludeSiteID) } }
+          $match: { 'siteusers.siteID': { $ne: DatabaseUtils.convertToObjectID(params.excludeSiteID) } }
         });
       }
     }
@@ -672,13 +677,13 @@ export default class UserStorage {
       aggregation.push({ $limit: Constants.DB_RECORD_COUNT_CEIL });
     }
     // Count Records
-    const usersCountMDB = await global.database.getCollection<any>(tenantID, 'users')
+    const usersCountMDB = await global.database.getCollection<any>(tenant.id, 'users')
       .aggregate([...aggregation, { $count: 'count' }], { allowDiskUse: true })
       .toArray();
     // Check if only the total count is requested
     if (dbParams.onlyRecordCount) {
       // Return only the count
-      await Logging.traceEnd(tenantID, MODULE_NAME, 'getUsers', uniqueTimerID, usersCountMDB);
+      await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUsers', uniqueTimerID, usersCountMDB);
       return {
         count: (!Utils.isEmptyArray(usersCountMDB) ? usersCountMDB[0].count : 0),
         result: []
@@ -704,44 +709,45 @@ export default class UserStorage {
     // Change ID
     DatabaseUtils.pushRenameDatabaseID(aggregation);
     // Add Created By / Last Changed By
-    DatabaseUtils.pushCreatedLastChangedInAggregation(tenantID, aggregation);
+    DatabaseUtils.pushCreatedLastChangedInAggregation(tenant.id, aggregation);
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const usersMDB = await global.database.getCollection<User>(tenantID, 'users')
+    const usersMDB = await global.database.getCollection<User>(tenant.id, 'users')
       .aggregate(aggregation, {
         allowDiskUse: true
       })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getUsers', uniqueTimerID, usersMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUsers', uniqueTimerID, usersMDB);
     // Ok
     return {
       count: (!Utils.isEmptyArray(usersCountMDB) ?
         (usersCountMDB[0].count === Constants.DB_RECORD_COUNT_CEIL ? -1 : usersCountMDB[0].count) : 0),
-      result: usersMDB
+      result: usersMDB,
+      projectedFields: projectFields
     };
   }
 
-  public static async getImportedUsersCount(tenantID: string): Promise<number> {
+  public static async getImportedUsersCount(tenant: Tenant): Promise<number> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getImportedUsersCount');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getImportedUsersCount');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Count documents
-    const nbrOfDocuments = await global.database.getCollection<any>(tenantID, 'importedusers').count();
+    const nbrOfDocuments = await global.database.getCollection<any>(tenant.id, 'importedusers').countDocuments();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getImportedUsersCount', uniqueTimerID);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getImportedUsersCount', uniqueTimerID);
     return nbrOfDocuments;
   }
 
-  public static async getImportedUsers(tenantID: string,
+  public static async getImportedUsers(tenant: Tenant,
       params: { status?: ImportStatus; search?: string },
       dbParams: DbParams, projectFields?: string[]): Promise<DataResult<ImportedUser>> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getImportedUsers');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getImportedUsers');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Clone before updating the values
     dbParams = Utils.cloneObject(dbParams);
     // Check Limit
@@ -773,13 +779,13 @@ export default class UserStorage {
       aggregation.push({ $limit: Constants.DB_RECORD_COUNT_CEIL });
     }
     // Count Records
-    const usersImportCountMDB = await global.database.getCollection<any>(tenantID, 'importedusers')
+    const usersImportCountMDB = await global.database.getCollection<any>(tenant.id, 'importedusers')
       .aggregate([...aggregation, { $count: 'count' }], { allowDiskUse: true })
       .toArray();
     // Check if only the total count is requested
     if (dbParams.onlyRecordCount) {
       // Return only the count
-      await Logging.traceEnd(tenantID, MODULE_NAME, 'getImportedUsers', uniqueTimerID, usersImportCountMDB);
+      await Logging.traceEnd(tenant.id, MODULE_NAME, 'getImportedUsers', uniqueTimerID, usersImportCountMDB);
       return {
         count: (!Utils.isEmptyArray(usersImportCountMDB) ? usersImportCountMDB[0].count : 0),
         result: []
@@ -807,17 +813,17 @@ export default class UserStorage {
     // Convert Object ID to string
     DatabaseUtils.pushConvertObjectIDToString(aggregation, 'importedBy');
     // Add Created By / Last Changed By
-    DatabaseUtils.pushCreatedLastChangedInAggregation(tenantID, aggregation);
+    DatabaseUtils.pushCreatedLastChangedInAggregation(tenant.id, aggregation);
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const usersImportMDB = await global.database.getCollection<any>(tenantID, 'importedusers')
+    const usersImportMDB = await global.database.getCollection<any>(tenant.id, 'importedusers')
       .aggregate(aggregation, {
         allowDiskUse: true
       })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getUsersImport', uniqueTimerID, usersImportMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUsersImport', uniqueTimerID, usersImportMDB);
     // Ok
     return {
       count: (!Utils.isEmptyArray(usersImportCountMDB) ?
@@ -826,13 +832,13 @@ export default class UserStorage {
     };
   }
 
-  public static async getUsersInError(tenantID: string,
+  public static async getUsersInError(tenant: Tenant,
       params: { search?: string; roles?: string[]; errorTypes?: string[] },
       dbParams: DbParams, projectFields?: string[]): Promise<DataResult<UserInError>> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getUsers');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getUsers');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Clone before updating the values
     dbParams = Utils.cloneObject(dbParams);
     // Check Limit
@@ -863,7 +869,7 @@ export default class UserStorage {
     // Mongodb Lookup block
     // Add Tags
     DatabaseUtils.pushTagLookupInAggregation({
-      tenantID, aggregation, localField: '_id', foreignField: 'userID', asField: 'tags'
+      tenantID: tenant.id, aggregation, localField: '_id', foreignField: 'userID', asField: 'tags'
     });
     // Mongodb facets block
     // If the organization component is active the system looks for non active users or active users that
@@ -871,14 +877,17 @@ export default class UserStorage {
     // If the organization component is not active then the system just looks for non active users.
     const facets: any = { $facet: {} };
     const array = [];
-    const tenant = await TenantStorage.getTenant(tenantID);
     for (const type of params.errorTypes) {
       if ((type === UserInErrorType.NOT_ASSIGNED && !Utils.isTenantComponentActive(tenant, TenantComponents.ORGANIZATION)) ||
         ((type === UserInErrorType.NO_BILLING_DATA || type === UserInErrorType.FAILED_BILLING_SYNCHRO) && !Utils.isTenantComponentActive(tenant, TenantComponents.BILLING))) {
         continue;
       }
+      if (type === UserInErrorType.NO_BILLING_DATA && !FeatureToggles.isFeatureActive(Feature.BILLING_SYNC_USERS)) {
+        // LAZY User Synchronization - no BillingData is not an Error anymore
+        continue;
+      }
       array.push(`$${type}`);
-      facets.$facet[type] = UserStorage.getUserInErrorFacet(tenantID, type);
+      facets.$facet[type] = UserStorage.getUserInErrorFacet(tenant, type);
     }
     // Do not add facet aggregation if no facet found
     if (Object.keys(facets.$facet).length > 0) {
@@ -892,7 +901,7 @@ export default class UserStorage {
     // Change ID
     DatabaseUtils.pushRenameDatabaseID(aggregation);
     // Add Created By / Last Changed By
-    DatabaseUtils.pushCreatedLastChangedInAggregation(tenantID, aggregation);
+    DatabaseUtils.pushCreatedLastChangedInAggregation(tenant.id, aggregation);
     // Mongodb sort, skip and limit block
     if (!dbParams.sort) {
       dbParams.sort = { status: -1, name: 1, firstName: 1 };
@@ -911,13 +920,13 @@ export default class UserStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const usersMDB = await global.database.getCollection<User>(tenantID, 'users')
+    const usersMDB = await global.database.getCollection<User>(tenant.id, 'users')
       .aggregate(aggregation, {
         allowDiskUse: false
       })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getUsers', uniqueTimerID, usersMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUsers', uniqueTimerID, usersMDB);
     // Ok
     return {
       count: usersMDB.length,
@@ -925,37 +934,37 @@ export default class UserStorage {
     };
   }
 
-  public static async deleteUser(tenantID: string, id: string): Promise<void> {
+  public static async deleteUser(tenant: Tenant, id: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'deleteUser');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'deleteUser');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Delete User Image
-    await global.database.getCollection<any>(tenantID, 'userimages')
-      .findOneAndDelete({ '_id': Utils.convertToObjectID(id) });
+    await global.database.getCollection<any>(tenant.id, 'userimages')
+      .findOneAndDelete({ '_id': DatabaseUtils.convertToObjectID(id) });
     // Delete Site Users
-    await global.database.getCollection<any>(tenantID, 'siteusers')
-      .deleteMany({ 'userID': Utils.convertToObjectID(id) });
+    await global.database.getCollection<any>(tenant.id, 'siteusers')
+      .deleteMany({ 'userID': DatabaseUtils.convertToObjectID(id) });
     // Delete Tags
-    await global.database.getCollection<any>(tenantID, 'tags')
-      .deleteMany({ 'userID': Utils.convertToObjectID(id) });
+    await global.database.getCollection<any>(tenant.id, 'tags')
+      .deleteMany({ 'userID': DatabaseUtils.convertToObjectID(id) });
     // Delete Connections
-    await global.database.getCollection<any>(tenantID, 'connections')
-      .deleteMany({ 'userId': Utils.convertToObjectID(id) });
+    await global.database.getCollection<any>(tenant.id, 'connections')
+      .deleteMany({ 'userId': DatabaseUtils.convertToObjectID(id) });
     // Delete User
-    await global.database.getCollection<any>(tenantID, 'users')
-      .findOneAndDelete({ '_id': Utils.convertToObjectID(id) });
+    await global.database.getCollection<any>(tenant.id, 'users')
+      .findOneAndDelete({ '_id': DatabaseUtils.convertToObjectID(id) });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'deleteUser', uniqueTimerID, { id });
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'deleteUser', uniqueTimerID, { id });
   }
 
-  public static async getUserSites(tenantID: string,
-      params: { search?: string; userID: string; siteAdmin?: boolean; siteOwner?: boolean },
+  public static async getUserSites(tenant: Tenant,
+      params: { search?: string; userIDs: string[]; siteAdmin?: boolean; siteOwner?: boolean },
       dbParams: DbParams, projectFields?: string[]): Promise<DataResult<SiteUser>> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getUserSites');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getUserSites');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Clone before updating the values
     dbParams = Utils.cloneObject(dbParams);
     // Check Limit
@@ -965,8 +974,10 @@ export default class UserStorage {
     // Set the filters
     const filters: FilterParams = {};
     // Filter
-    if (params.userID) {
-      filters.userID = Utils.convertToObjectID(params.userID);
+    if (!Utils.isEmptyArray(params.userIDs)) {
+      filters.userID = {
+        $in: params.userIDs.map((userID) => DatabaseUtils.convertToObjectID(userID))
+      };
     }
     if (params.siteAdmin) {
       filters.siteAdmin = params.siteAdmin;
@@ -982,7 +993,7 @@ export default class UserStorage {
     });
     // Get Sites
     DatabaseUtils.pushSiteLookupInAggregation({
-      tenantID, aggregation, localField: 'siteID', foreignField: '_id',
+      tenantID: tenant.id, aggregation, localField: 'siteID', foreignField: '_id',
       asField: 'site', oneToOneCardinality: true, oneToOneCardinalityNotNull: true
     });
     // Another match for searching on Sites
@@ -999,12 +1010,12 @@ export default class UserStorage {
       aggregation.push({ $limit: Constants.DB_RECORD_COUNT_CEIL });
     }
     // Count Records
-    const sitesCountMDB = await global.database.getCollection<any>(tenantID, 'siteusers')
+    const sitesCountMDB = await global.database.getCollection<any>(tenant.id, 'siteusers')
       .aggregate([...aggregation, { $count: 'count' }], { allowDiskUse: true })
       .toArray();
     // Check if only the total count is requested
     if (dbParams.onlyRecordCount) {
-      await Logging.traceEnd(tenantID, MODULE_NAME, 'getUserSites', uniqueTimerID, sitesCountMDB);
+      await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUserSites', uniqueTimerID, sitesCountMDB);
       return {
         count: (!Utils.isEmptyArray(sitesCountMDB) ? sitesCountMDB[0].count : 0),
         result: []
@@ -1035,24 +1046,25 @@ export default class UserStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Read DB
-    const siteUsersMDB = await global.database.getCollection<{ userID: string; siteID: string; siteAdmin: boolean; siteOwner: boolean; site: Site }>(tenantID, 'siteusers')
+    const siteUsersMDB = await global.database.getCollection<{ userID: string; siteID: string; siteAdmin: boolean; siteOwner: boolean; site: Site }>(tenant.id, 'siteusers')
       .aggregate(aggregation, {
         allowDiskUse: true
       }).toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getUserSites', uniqueTimerID, siteUsersMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUserSites', uniqueTimerID, siteUsersMDB);
     // Ok
     return {
       count: (!Utils.isEmptyArray(sitesCountMDB) ?
         (sitesCountMDB[0].count === Constants.DB_RECORD_COUNT_CEIL ? -1 : sitesCountMDB[0].count) : 0),
-      result: siteUsersMDB
+      result: siteUsersMDB,
+      projectedFields: projectFields
     };
   }
 
   // Alternative system of registering new users by badging should be found - for now, an empty user is created and saved.
   public static createNewUser(): Partial<User> {
     return {
-      id: new ObjectID().toHexString(),
+      id: new ObjectId().toString(),
       issuer: true,
       name: 'Unknown',
       firstName: 'User',
@@ -1094,7 +1106,7 @@ export default class UserStorage {
     };
   }
 
-  private static getUserInErrorFacet(tenantID: string, errorType: string) {
+  private static getUserInErrorFacet(tenant: Tenant, errorType: string) {
     switch (errorType) {
       case UserInErrorType.NOT_ACTIVE:
         return [
@@ -1105,7 +1117,7 @@ export default class UserStorage {
         return [
           {
             $lookup: {
-              from: DatabaseUtils.getCollectionName(tenantID, 'siteusers'),
+              from: DatabaseUtils.getCollectionName(tenant.id, 'siteusers'),
               localField: '_id',
               foreignField: 'userID',
               as: 'sites'

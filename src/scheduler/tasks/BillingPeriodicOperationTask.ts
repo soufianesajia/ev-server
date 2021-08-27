@@ -1,5 +1,4 @@
 import BillingFactory from '../../integration/billing/BillingFactory';
-import { BillingPeriodicOperationTaskConfig } from '../../types/TaskConfig';
 import LockingHelper from '../../locking/LockingHelper';
 import LockingManager from '../../locking/LockingManager';
 import Logging from '../../utils/Logging';
@@ -12,16 +11,16 @@ import Utils from '../../utils/Utils';
 export default class BillingPeriodicOperationTask extends SchedulerTask {
   async processTenant(tenant: Tenant, /* taskConfig: BillingPeriodicOperationTaskConfig */): Promise<void> {
     // Get the lock
-    const billingLock = await LockingHelper.createBillingPeriodicOperationLock(tenant.id);
+    const billingLock = await LockingHelper.acquireBillingPeriodicOperationLock(tenant.id);
     if (billingLock) {
       try {
-        const billingImpl = await BillingFactory.getBillingImpl(tenant.id);
+        const billingImpl = await BillingFactory.getBillingImpl(tenant);
         if (billingImpl) {
           // Attempt to finalize and pay invoices
           const chargeActionResults = await billingImpl.chargeInvoices();
           if (chargeActionResults.inError > 0) {
             await NotificationHandler.sendBillingPeriodicOperationFailed(
-              tenant.id,
+              tenant,
               {
                 nbrInvoicesInError: chargeActionResults.inError,
                 evseDashboardURL: Utils.buildEvseURL(tenant.subdomain),

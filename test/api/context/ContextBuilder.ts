@@ -2,7 +2,6 @@ import ContextDefinition, { TenantDefinition } from './ContextDefinition';
 import { SettingDB, SettingDBContent } from '../../../src/types/Setting';
 
 import AssetStorage from '../../../src/storage/mongodb/AssetStorage';
-import BillingContext from './BillingContext';
 import CentralServerService from '../client/CentralServerService';
 import ChargingStation from '../../../src/types/ChargingStation';
 import CompanyStorage from '../../../src/storage/mongodb/CompanyStorage';
@@ -71,10 +70,10 @@ export default class ContextBuilder {
 
   async destroy(): Promise<void> {
     if (this.tenantsContexts && this.tenantsContexts.length > 0) {
-      this.tenantsContexts.forEach(async (tenantContext) => {
+      for (const tenantContext of this.tenantsContexts) {
         console.log(`Delete Tenant context '${tenantContext.getTenant().id} (${tenantContext.getTenant().subdomain})`);
         await this.superAdminCentralServerService.deleteEntity(this.superAdminCentralServerService.tenantApi, tenantContext.getTenant());
-      });
+      }
     }
     // Delete all tenants
     for (const tenantContextDef of ContextDefinition.TENANT_CONTEXT_LIST) {
@@ -138,7 +137,7 @@ export default class ContextBuilder {
     await this.superAdminCentralServerService.updateEntity(
       this.superAdminCentralServerService.tenantApi, buildTenant);
     console.log(`${buildTenant.id} (${buildTenant.name}) - Create tenant context`);
-    const userId = await UserStorage.saveUser(buildTenant.id, {
+    const userId = await UserStorage.saveUser(buildTenant, {
       'id': ContextDefinition.TENANT_USER_LIST[0].id,
       'issuer': true,
       'name': 'Admin',
@@ -149,16 +148,16 @@ export default class ContextBuilder {
       'mobile': '66666666666',
       'plateID': '666-FB-69'
     } as User);
-    await UserStorage.saveUserStatus(buildTenant.id, userId, ContextDefinition.TENANT_USER_LIST[0].status);
-    await UserStorage.saveUserRole(buildTenant.id, userId, ContextDefinition.TENANT_USER_LIST[0].role);
-    await UserStorage.saveUserPassword(buildTenant.id, userId, { password: await Utils.hashPasswordBcrypt(config.get('admin.password')) });
+    await UserStorage.saveUserStatus(buildTenant, userId, ContextDefinition.TENANT_USER_LIST[0].status);
+    await UserStorage.saveUserRole(buildTenant, userId, ContextDefinition.TENANT_USER_LIST[0].role);
+    await UserStorage.saveUserPassword(buildTenant, userId, { password: await Utils.hashPasswordBcrypt(config.get('admin.password')) });
     if (ContextDefinition.TENANT_USER_LIST[0].tags) {
       for (const tag of ContextDefinition.TENANT_USER_LIST[0].tags) {
         tag.userID = ContextDefinition.TENANT_USER_LIST[0].id;
-        await TagStorage.saveTag(buildTenant.id, tag);
+        await TagStorage.saveTag(buildTenant, tag);
       }
     }
-    const defaultAdminUser = await UserStorage.getUser(buildTenant.id, ContextDefinition.TENANT_USER_LIST[0].id);
+    const defaultAdminUser = await UserStorage.getUser(buildTenant, ContextDefinition.TENANT_USER_LIST[0].id);
     // Create Central Server Service
     const localCentralServiceService: CentralServerService = new CentralServerService(buildTenant.subdomain);
     // Create Tenant component settings
@@ -197,7 +196,7 @@ export default class ContextBuilder {
             localToken: ContextBuilder.generateLocalToken(OCPIRole.CPO, tenantContextDef.subdomain),
             token: 'TOIOP-OCPI-TOKEN-cpo-xxxx-xxxx-yyyy'
           } as OCPIEndpoint;
-          await OCPIEndpointStorage.saveOcpiEndpoint(buildTenant.id, cpoEndpoint);
+          await OCPIEndpointStorage.saveOcpiEndpoint(buildTenant, cpoEndpoint);
           const emspEndpoint = {
             name: 'EMSP Endpoint',
             role: OCPIRole.EMSP,
@@ -210,7 +209,7 @@ export default class ContextBuilder {
             localToken: ContextBuilder.generateLocalToken(OCPIRole.EMSP, tenantContextDef.subdomain),
             token: 'TOIOP-OCPI-TOKEN-emsp-xxxx-xxxx-yyyy'
           } as OCPIEndpoint;
-          await OCPIEndpointStorage.saveOcpiEndpoint(buildTenant.id, emspEndpoint);
+          await OCPIEndpointStorage.saveOcpiEndpoint(buildTenant, emspEndpoint);
         }
       }
     }
@@ -236,17 +235,17 @@ export default class ContextBuilder {
       const newPasswordHashed = await Utils.hashPasswordBcrypt(config.get('admin.password'));
       createUser.id = userDef.id;
       const user: User = createUser;
-      await UserStorage.saveUser(buildTenant.id, user);
-      await UserStorage.saveUserStatus(buildTenant.id, user.id, userDef.status);
-      await UserStorage.saveUserRole(buildTenant.id, user.id, userDef.role);
-      await UserStorage.saveUserPassword(buildTenant.id, user.id, { password: newPasswordHashed });
+      await UserStorage.saveUser(buildTenant, user);
+      await UserStorage.saveUserStatus(buildTenant, user.id, userDef.status);
+      await UserStorage.saveUserRole(buildTenant, user.id, userDef.role);
+      await UserStorage.saveUserPassword(buildTenant, user.id, { password: newPasswordHashed });
       if (userDef.tags) {
         for (const tag of userDef.tags) {
           tag.userID = user.id;
-          await TagStorage.saveTag(buildTenant.id, tag);
+          await TagStorage.saveTag(buildTenant, tag);
         }
       }
-      const userModel = await UserStorage.getUser(buildTenant.id, user.id);
+      const userModel = await UserStorage.getUser(buildTenant, user.id);
       if (userDef.assignedToSite) {
         userListToAssign.push(userModel);
       }
@@ -258,7 +257,7 @@ export default class ContextBuilder {
     const newTenantContext = new TenantContext(tenantContextDef.tenantName, buildTenant, '', localCentralServiceService, null);
     this.tenantsContexts.push(newTenantContext);
     newTenantContext.addUsers(userList);
-    tagList = (await TagStorage.getTags(buildTenant.id, {}, Constants.DB_PARAMS_MAX_LIMIT)).result;
+    tagList = (await TagStorage.getTags(buildTenant, {}, Constants.DB_PARAMS_MAX_LIMIT)).result;
     newTenantContext.addTags(tagList);
     // Check if Organization is active
     if (buildTenant.components && Utils.objectHasProperty(buildTenant.components, TenantComponents.ORGANIZATION) &&
@@ -270,7 +269,8 @@ export default class ContextBuilder {
         dummyCompany.createdBy = { id: adminUser.id };
         dummyCompany.createdOn = moment().toISOString();
         dummyCompany.issuer = true;
-        await CompanyStorage.saveCompany(buildTenant.id, dummyCompany);
+        console.log(`${buildTenant.id} (${buildTenant.name}) - Company '${dummyCompany.name}'`);
+        await CompanyStorage.saveCompany(buildTenant, dummyCompany);
         newTenantContext.getContext().companies.push(dummyCompany);
       }
       // Build sites/sitearea according to tenant definition
@@ -287,8 +287,8 @@ export default class ContextBuilder {
         siteTemplate.id = siteContextDef.id;
         siteTemplate.issuer = true;
         site = siteTemplate;
-        site.id = await SiteStorage.saveSite(buildTenant.id, siteTemplate, true);
-        await SiteStorage.addUsersToSite(buildTenant.id, site.id, userListToAssign.map((user) => user.id));
+        site.id = await SiteStorage.saveSite(buildTenant, siteTemplate, true);
+        await SiteStorage.addUsersToSite(buildTenant, site.id, userListToAssign.map((user) => user.id));
         const siteContext = new SiteContext(site, newTenantContext);
         // Create site areas of current site
         for (const siteAreaDef of ContextDefinition.TENANT_SITEAREA_LIST.filter((siteArea) => siteArea.siteName === site.name)) {
@@ -303,8 +303,8 @@ export default class ContextBuilder {
           siteAreaTemplate.numberOfPhases = siteAreaDef.numberOfPhases;
           siteAreaTemplate.voltage = siteAreaDef.voltage;
           console.log(`${buildTenant.id} (${buildTenant.name}) - Site Area '${siteAreaTemplate.name}'`);
-          const sireAreaID = await SiteAreaStorage.saveSiteArea(buildTenant.id, siteAreaTemplate);
-          const siteAreaModel = await SiteAreaStorage.getSiteArea(buildTenant.id, sireAreaID);
+          const sireAreaID = await SiteAreaStorage.saveSiteArea(buildTenant, siteAreaTemplate);
+          const siteAreaModel = await SiteAreaStorage.getSiteArea(buildTenant, sireAreaID);
           const siteAreaContext = siteContext.addSiteArea(siteAreaModel);
           const relevantCS = ContextDefinition.TENANT_CHARGING_STATION_LIST.filter(
             (chargingStation) => chargingStation.siteAreaNames && chargingStation.siteAreaNames.includes(siteAreaModel.name) === true);
@@ -384,7 +384,6 @@ export default class ContextBuilder {
     newTenantContext.addSiteContext(siteContext);
     // Create transaction/session data for a specific tenants:
     const statisticContext = new StatisticsContext(newTenantContext);
-    const billingContext = new BillingContext(newTenantContext);
     switch (tenantContextDef.tenantName) {
       case ContextDefinition.TENANT_CONTEXTS.TENANT_WITH_ALL_COMPONENTS:
         console.log(`${buildTenant.id} (${buildTenant.name}) - Transactions - Site Area '${ContextDefinition.SITE_CONTEXTS.SITE_BASIC}-${ContextDefinition.SITE_AREA_CONTEXTS.WITH_ACL}'`);
@@ -394,9 +393,6 @@ export default class ContextBuilder {
         console.log(`${buildTenant.id} (${buildTenant.name}) - Transactions - Unassigned Charging Stations`);
         await statisticContext.createTestData(ContextDefinition.SITE_CONTEXTS.NO_SITE, ContextDefinition.SITE_AREA_CONTEXTS.NO_SITE);
         break;
-      case ContextDefinition.TENANT_CONTEXTS.TENANT_BILLING:
-        console.log(`${buildTenant.id} (${buildTenant.name}) - Invoices`);
-        await billingContext.createTestData();
     }
     return newTenantContext;
   }

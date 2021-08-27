@@ -1,6 +1,5 @@
-import { HttpCarByIDRequest, HttpCarCatalogByIDRequest, HttpCarCatalogImagesRequest, HttpCarCatalogsRequest, HttpCarCreateRequest, HttpCarMakersRequest, HttpCarUpdateRequest, HttpCarsRequest, HttpUsersCarsRequest } from '../../../../../types/requests/HttpCarRequest';
+import { HttpCarCatalogImagesRequest, HttpCarCatalogRequest, HttpCarCatalogsRequest, HttpCarCreateRequest, HttpCarMakersRequest, HttpCarRequest, HttpCarUpdateRequest, HttpCarsRequest } from '../../../../../types/requests/HttpCarRequest';
 
-import { UserCar } from '../../../../../types/User';
 import Utils from '../../../../../utils/Utils';
 import UtilsSecurity from './UtilsSecurity';
 import sanitize from 'mongo-sanitize';
@@ -35,11 +34,10 @@ export default class CarSecurity {
     return filteredRequest;
   }
 
-  public static filterCarCatalogRequest(request: any): HttpCarCatalogByIDRequest {
-    const filteredRequest: HttpCarCatalogByIDRequest = {
+  public static filterCarCatalogRequest(request: any): HttpCarCatalogRequest {
+    return {
       ID: Utils.convertToInt(sanitize(request.ID)),
-    } as HttpCarCatalogByIDRequest;
-    return filteredRequest;
+    };
   }
 
   public static filterCarCreateRequest(request: any): HttpCarCreateRequest {
@@ -49,45 +47,32 @@ export default class CarSecurity {
       carCatalogID: Utils.convertToInt(sanitize(request.carCatalogID)),
       forced: UtilsSecurity.filterBoolean(request.forced),
       type: sanitize(request.type),
+      userID: sanitize(request.userID),
+      default: UtilsSecurity.filterBoolean(request.isDefault),
       converter: {
         amperagePerPhase: sanitize(request.converter.amperagePerPhase),
         numberOfPhases: sanitize(request.converter.numberOfPhases),
         type: sanitize(request.converter.type),
         powerWatts: sanitize(request.converter.powerWatts)
       },
-      usersAdded: request.usersUpserted ? request.usersUpserted.map((userUpserted: UserCar) => ({
-        user: userUpserted.user,
-        default: userUpserted.default,
-        owner: userUpserted.owner,
-      })) : [],
     };
   }
 
   public static filterCarUpdateRequest(request: any): HttpCarUpdateRequest {
     const filteredRequest: HttpCarUpdateRequest = {
+      id: sanitize(request.id),
       vin: sanitize(request.vin),
       licensePlate: sanitize(request.licensePlate),
       carCatalogID: Utils.convertToInt(sanitize(request.carCatalogID)),
       type: sanitize(request.type),
-      id: sanitize(request.id),
+      userID: sanitize(request.userID),
+      default: UtilsSecurity.filterBoolean(request.isDefault),
       converter: {
         amperagePerPhase: sanitize(request.converter.amperagePerPhase),
         numberOfPhases: sanitize(request.converter.numberOfPhases),
         type: sanitize(request.converter.type),
         powerWatts: sanitize(request.converter.powerWatts)
       },
-      usersRemoved: request.usersRemoved ? request.usersRemoved.map((userRemoved: UserCar) => ({
-        id: userRemoved.id,
-        user: userRemoved.user,
-        default: userRemoved.default,
-        owner: userRemoved.owner,
-      })) : [],
-      usersUpserted: request.usersUpserted ? request.usersUpserted.map((userUpserted: UserCar) => ({
-        id: userUpserted.id,
-        user: userUpserted.user,
-        default: userUpserted.default,
-        owner: userUpserted.owner,
-      })) : [],
     };
     return filteredRequest;
   }
@@ -96,7 +81,7 @@ export default class CarSecurity {
     const filteredRequest: HttpCarsRequest = {
       Search: sanitize(request.Search),
       CarMaker: sanitize(request.CarMaker),
-      WithUsers: UtilsSecurity.filterBoolean(request.WithUsers),
+      WithUser: UtilsSecurity.filterBoolean(request.WithUser),
       UserID: sanitize(request.UserID)
     } as HttpCarsRequest;
     UtilsSecurity.filterSkipAndLimit(request, filteredRequest);
@@ -104,20 +89,10 @@ export default class CarSecurity {
     return filteredRequest;
   }
 
-  public static filterCarRequest(request: any): HttpCarByIDRequest {
-    const filteredRequest: HttpCarByIDRequest = {
+  public static filterCarRequest(request: any): HttpCarRequest {
+    const filteredRequest: HttpCarRequest = {
       ID: sanitize(request.ID),
-    } as HttpCarByIDRequest;
-    return filteredRequest;
-  }
-
-  public static filterCarUsersRequest(request: any): HttpUsersCarsRequest {
-    const filteredRequest: HttpUsersCarsRequest = {
-      Search: sanitize(request.Search),
-      CarID: sanitize(request.CarID),
-    } as HttpUsersCarsRequest;
-    UtilsSecurity.filterSkipAndLimit(request, filteredRequest);
-    UtilsSecurity.filterSort(request, filteredRequest);
+    } as HttpCarRequest;
     return filteredRequest;
   }
 }

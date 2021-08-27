@@ -88,7 +88,6 @@ export enum Entity {
   CAR_CATALOGS = 'CarCatalogs',
   CAR = 'Car',
   CARS = 'Cars',
-  USERS_CARS = 'UsersCars',
   INVOICE = 'Invoice',
   INVOICES = 'Invoices',
   TAXES = 'Taxes',
@@ -117,6 +116,7 @@ export enum Action {
   ASSIGN = 'Assign',
   UNASSIGN = 'Unassign',
   CLEAR_CACHE = 'ClearCache',
+  TRIGGER_DATA_TRANSFER = 'DataTransfer',
   SYNCHRONIZE = 'Synchronize',
   GET_CONFIGURATION = 'GetConfiguration',
   CHANGE_CONFIGURATION = 'ChangeConfiguration',
@@ -142,17 +142,21 @@ export enum Action {
   BILLING_DELETE_PAYMENT_METHOD = 'BillingDeletePaymentMethod',
   BILLING_CHARGE_INVOICE = 'BillingChargeInvoice',
   CHECK_CONNECTION = 'CheckConnection',
+  CLEAR_BILLING_TEST_DATA = 'ClearBillingTestData',
   RETRIEVE_CONSUMPTION = 'RetrieveConsumption',
+  CREATE_CONSUMPTION = 'CreateConsumption',
   PING = 'Ping',
   GENERATE_LOCAL_TOKEN = 'GenerateLocalToken',
   REGISTER = 'Register',
   TRIGGER_JOB = 'TriggerJob',
   DOWNLOAD = 'Download',
   IMPORT = 'Import',
-  ASSIGN_ASSETS = 'AssignAssets',
-  UNASSIGN_ASSETS = 'UnassignAssets',
-  ASSIGN_CHARGING_STATIONS = 'AssignChargingStations',
-  UNASSIGN_CHARGING_STATIONS = 'UnassignChargingStations',
+  ASSIGN_USERS_TO_SITE = 'AssignUsersToSite',
+  UNASSIGN_USERS_TO_SITE = 'UnassignUsersToSite',
+  ASSIGN_ASSETS_TO_SITE_AREA = 'AssignAssetsToSiteArea',
+  UNASSIGN_ASSETS_TO_SITE_AREA = 'UnassignAssetsToSiteArea',
+  ASSIGN_CHARGING_STATIONS_TO_SITE_AREA = 'AssignChargingStationsToSiteArea',
+  UNASSIGN_CHARGING_STATIONS_TO_SITE_AREA = 'UnassignChargingStationsToSiteArea',
   EXPORT_OCPP_PARAMS = 'ExportOCPPParams',
   GENERATE_QR = 'GenerateQrCode',
 }
@@ -171,7 +175,8 @@ export interface AuthorizationContext {
   companies?: string[];
   asset?: string;
   assets?: string[];
-  filters?: DynamicAuthorizationFilterName[];
+  filters?: DynamicAuthorizationFilterName[] | [DynamicAuthorizationFilterName[]];
+  asserts?: DynamicAuthorizationAssertName[] | [DynamicAuthorizationAssertName[]];
 }
 
 export interface AuthorizationActions {
@@ -199,16 +204,22 @@ export interface SiteAuthorizationActions extends AuthorizationActions {
 export enum DynamicAuthorizationFilterName {
   ASSIGNED_SITES_COMPANIES = 'AssignedSitesCompanies',
   SITES_ADMIN = 'SitesAdmin',
+  SITES_OWNER = 'SitesOwner',
   ASSIGNED_SITES = 'AssignedSites',
-  SITE_ADMIN_USERS = 'SiteAdminUsers',
+  OWN_USER = 'OwnUser',
+  LOCAL_ISSUER = 'LocalIssuer',
+}
+
+export enum DynamicAuthorizationAssertName {
+  POOL_CAR = 'PoolCar',
   OWN_USER = 'OwnUser',
 }
 
 export enum DynamicAuthorizationDataSourceName {
   ASSIGNED_SITES_COMPANIES = 'AssignedSitesCompanies',
   SITES_ADMIN = 'SitesAdmin',
+  SITES_OWNER = 'SitesOwner',
   ASSIGNED_SITES = 'AssignedSites',
-  SITE_ADMIN_USERS = 'SiteAdminUsers',
   OWN_USER = 'OwnUser',
 }
 
@@ -219,6 +230,10 @@ export interface AssignedSitesCompaniesDynamicAuthorizationDataSourceData extend
 }
 
 export interface SitesAdminDynamicAuthorizationDataSourceData extends DynamicAuthorizationDataSourceData {
+  siteIDs?: string[];
+}
+
+export interface SitesOwnerDynamicAuthorizationDataSourceData extends DynamicAuthorizationDataSourceData {
   siteIDs?: string[];
 }
 

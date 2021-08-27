@@ -18,7 +18,7 @@ export default class OICPClientFactory {
   static async getOicpClient(tenant: Tenant, oicpEndpoint: OICPEndpoint): Promise<OICPClient> {
     // Check if OICP component is active
     if (Utils.isTenantComponentActive(tenant, TenantComponents.OICP)) {
-      const oicpSettings = await SettingStorage.getOICPSettings(tenant.id);
+      const oicpSettings = await SettingStorage.getOICPSettings(tenant);
       // Check
       if (!oicpSettings && oicpSettings.oicp) {
         await Logging.logError({
@@ -51,7 +51,7 @@ export default class OICPClientFactory {
   }
 
   static async getAvailableOicpClient(tenant: Tenant, oicpRole: string): Promise<OICPClient> {
-    const oicpEndpoints = await OICPEndpointStorage.getOicpEndpoints(tenant.id, { role: oicpRole }, Constants.DB_PARAMS_MAX_LIMIT);
+    const oicpEndpoints = await OICPEndpointStorage.getOicpEndpoints(tenant, { role: oicpRole }, Constants.DB_PARAMS_MAX_LIMIT);
     for (const oicpEndpoint of oicpEndpoints.result) {
       if (oicpEndpoint.status === OICPRegistrationStatus.REGISTERED) {
         const client = await OICPClientFactory.getOicpClient(tenant, oicpEndpoint);

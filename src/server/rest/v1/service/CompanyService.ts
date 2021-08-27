@@ -3,7 +3,6 @@ import { NextFunction, Request, Response } from 'express';
 
 import AppAuthError from '../../../../exception/AppAuthError';
 import AuthorizationService from './AuthorizationService';
-import Authorizations from '../../../../authorization/Authorizations';
 import Company from '../../../../types/Company';
 import { CompanyDataResult } from '../../../../types/DataResult';
 import CompanySecurity from './security/CompanySecurity';
@@ -13,6 +12,7 @@ import { HTTPAuthError } from '../../../../types/HTTPError';
 import Logging from '../../../../utils/Logging';
 import { ServerAction } from '../../../../types/Server';
 import TenantComponents from '../../../../types/TenantComponents';
+import TenantStorage from '../../../../storage/mongodb/TenantStorage';
 import Utils from '../../../../utils/Utils';
 import UtilsService from './UtilsService';
 
@@ -29,9 +29,9 @@ export default class CompanyService {
     UtilsService.assertIdIsProvided(action, companyID, MODULE_NAME, 'handleDeleteCompany', req.user);
     // Check and Get Company
     const company = await UtilsService.checkAndGetCompanyAuthorization(
-      req.tenant, req.user, companyID, Action.DELETE, action, {});
+      req.tenant, req.user, companyID, Action.DELETE, action);
     // Delete
-    await CompanyStorage.deleteCompany(req.user.tenantID, company.id);
+    await CompanyStorage.deleteCompany(req.tenant, company.id);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
@@ -54,10 +54,9 @@ export default class CompanyService {
     UtilsService.assertIdIsProvided(action, filteredRequest.ID, MODULE_NAME, 'handleGetCompany', req.user);
     // Check and Get Company
     const company = await UtilsService.checkAndGetCompanyAuthorization(
-      req.tenant, req.user, filteredRequest.ID, Action.READ, action, {
+      req.tenant, req.user, filteredRequest.ID, Action.READ, action, null, {
         withLogo: true
       }, true);
-    // Return
     res.json(company);
     next();
   }
@@ -66,8 +65,12 @@ export default class CompanyService {
     // Filter
     const filteredRequest = CompanySecurity.filterCompanyLogoRequest(req.query);
     UtilsService.assertIdIsProvided(action, filteredRequest.ID, MODULE_NAME, 'handleGetCompanyLogo', req.user);
+    // Fetch Tenant Object by Tenant ID
+    const tenant = await TenantStorage.getTenant(filteredRequest.TenantID);
+    UtilsService.assertObjectExists(action, tenant, `Tenant ID '${filteredRequest.TenantID}' does not exist`,
+      MODULE_NAME, 'handleGetCompanyLogo', req.user);
     // Get the Logo
-    const companyLogo = await CompanyStorage.getCompanyLogo(filteredRequest.TenantID, filteredRequest.ID);
+    const companyLogo = await CompanyStorage.getCompanyLogo(tenant, filteredRequest.ID);
     // Return
     if (companyLogo?.logo) {
       let header = 'image';
@@ -93,14 +96,14 @@ export default class CompanyService {
     // Filter
     const filteredRequest = CompanySecurity.filterCompaniesRequest(req.query);
     // Check dynamic auth
-    const authorizationCompaniesFilter = await AuthorizationService.checkAndGetCompaniesAuthorizationFilters(
+    const authorizationCompaniesFilter = await AuthorizationService.checkAndGetCompaniesAuthorizations(
       req.tenant, req.user, filteredRequest);
     if (!authorizationCompaniesFilter.authorized) {
       UtilsService.sendEmptyDataResult(res, next);
       return;
     }
     // Get the companies
-    const companies = await CompanyStorage.getCompanies(req.user.tenantID,
+    const companies = await CompanyStorage.getCompanies(req.tenant,
       {
         search: filteredRequest.Search,
         issuer: filteredRequest.Issuer,
@@ -129,8 +132,14 @@ export default class CompanyService {
     // Check if component is active
     UtilsService.assertComponentIsActiveFromToken(req.user, TenantComponents.ORGANIZATION,
       Action.CREATE, Entity.COMPANY, MODULE_NAME, 'handleCreateCompany');
-    // Check auth
-    if (!await Authorizations.canCreateCompany(req.user)) {
+    // Filter
+    const filteredRequest = CompanySecurity.filterCompanyCreateRequest(req.body);
+    // Check
+    UtilsService.checkIfCompanyValid(filteredRequest, req);
+    // Get dynamic auth
+    const authorizationFilter = await AuthorizationService.checkAndGetCompanyAuthorizations(
+      req.tenant, req.user, {}, Action.CREATE, filteredRequest as Company);
+    if (!authorizationFilter.authorized) {
       throw new AppAuthError({
         errorCode: HTTPAuthError.FORBIDDEN,
         user: req.user,
@@ -138,10 +147,6 @@ export default class CompanyService {
         module: MODULE_NAME, method: 'handleCreateCompany'
       });
     }
-    // Filter
-    const filteredRequest = CompanySecurity.filterCompanyCreateRequest(req.body);
-    // Check
-    UtilsService.checkIfCompanyValid(filteredRequest, req);
     // Create company
     const newCompany: Company = {
       ...filteredRequest,
@@ -150,7 +155,7 @@ export default class CompanyService {
       createdOn: new Date()
     } as Company;
     // Save
-    newCompany.id = await CompanyStorage.saveCompany(req.user.tenantID, newCompany);
+    newCompany.id = await CompanyStorage.saveCompany(req.tenant, newCompany);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
@@ -170,12 +175,11 @@ export default class CompanyService {
       Action.UPDATE, Entity.COMPANY, MODULE_NAME, 'handleUpdateCompany');
     // Filter
     const filteredRequest = CompanySecurity.filterCompanyUpdateRequest(req.body);
-    UtilsService.assertIdIsProvided(action, filteredRequest.id, MODULE_NAME, 'handleUpdateCompany', req.user);
     // Check Mandatory fields
     UtilsService.checkIfCompanyValid(filteredRequest, req);
     // Check and Get Company
     const company = await UtilsService.checkAndGetCompanyAuthorization(
-      req.tenant, req.user, filteredRequest.id, Action.UPDATE, action, {});
+      req.tenant, req.user, filteredRequest.id, Action.UPDATE, action, filteredRequest as Company);
     // Update
     company.name = filteredRequest.name;
     company.address = filteredRequest.address;
@@ -185,7 +189,7 @@ export default class CompanyService {
     company.lastChangedBy = { 'id': req.user.id };
     company.lastChangedOn = new Date();
     // Update Company
-    await CompanyStorage.saveCompany(req.user.tenantID, company, Utils.objectHasProperty(filteredRequest, 'logo') ? true : false);
+    await CompanyStorage.saveCompany(req.tenant, company, Utils.objectHasProperty(filteredRequest, 'logo') ? true : false);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,

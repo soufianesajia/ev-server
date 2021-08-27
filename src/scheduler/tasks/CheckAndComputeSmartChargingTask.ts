@@ -17,16 +17,16 @@ export default class CheckAndComputeSmartChargingTask extends SchedulerTask {
     if (Utils.isTenantComponentActive(tenant, TenantComponents.ORGANIZATION) &&
       Utils.isTenantComponentActive(tenant, TenantComponents.SMART_CHARGING)) {
       // Get all site areas
-      const siteAreas = await SiteAreaStorage.getSiteAreas(tenant.id,
+      const siteAreas = await SiteAreaStorage.getSiteAreas(tenant,
         { smartCharging: true },
         Constants.DB_PARAMS_MAX_LIMIT);
       // Get Site Area
       for (const siteArea of siteAreas.result) {
-        const siteAreaLock = await LockingHelper.tryCreateSiteAreaSmartChargingLock(tenant.id, siteArea, 30 * 1000);
+        const siteAreaLock = await LockingHelper.acquireSiteAreaSmartChargingLock(tenant.id, siteArea, 30);
         if (siteAreaLock) {
           try {
             // Get implementation
-            const smartCharging = await SmartChargingFactory.getSmartChargingImpl(tenant.id);
+            const smartCharging = await SmartChargingFactory.getSmartChargingImpl(tenant);
             if (!smartCharging) {
               // Log
               await Logging.logError({
@@ -45,7 +45,7 @@ export default class CheckAndComputeSmartChargingTask extends SchedulerTask {
               module: MODULE_NAME, method: 'processTenant',
               action: ServerAction.CHECK_AND_APPLY_SMART_CHARGING,
               message: `Error while running the task '${CheckAndComputeSmartChargingTask.name}': ${error.message}`,
-              detailedMessages: { error: error.message, stack: error.stack }
+              detailedMessages: { error: error.stack }
             });
           } finally {
             // Release lock

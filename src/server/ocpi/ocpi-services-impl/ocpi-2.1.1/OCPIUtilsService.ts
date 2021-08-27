@@ -3,6 +3,7 @@ import * as CountriesList from 'countries-list';
 import ChargingStation, { ChargePoint, Connector, ConnectorType, CurrentType, Voltage } from '../../../../types/ChargingStation';
 import { OCPICapability, OCPIEvse, OCPIEvseStatus } from '../../../../types/ocpi/OCPIEvse';
 import { OCPIConnector, OCPIConnectorFormat, OCPIConnectorType, OCPIPowerType, OCPIVoltage } from '../../../../types/ocpi/OCPIConnector';
+import OCPIEndpoint, { OCPIAvailableEndpoints, OCPIEndpointVersions } from '../../../../types/ocpi/OCPIEndpoint';
 import { OCPILocation, OCPILocationOptions, OCPILocationType, OCPIOpeningTimes } from '../../../../types/ocpi/OCPILocation';
 import { OCPISession, OCPISessionStatus } from '../../../../types/ocpi/OCPISession';
 import { OCPITariff, OCPITariffDimensionType } from '../../../../types/ocpi/OCPITariff';
@@ -22,14 +23,13 @@ import { DataResult } from '../../../../types/DataResult';
 import DbParams from '../../../../types/database/DbParams';
 import { HTTPError } from '../../../../types/HTTPError';
 import Logging from '../../../../utils/Logging';
+import { OCPIBusinessDetails } from '../../../../types/ocpi/OCPIBusinessDetails';
 import { OCPICdr } from '../../../../types/ocpi/OCPICdr';
 import OCPICredential from '../../../../types/ocpi/OCPICredential';
-import OCPIEndpoint from '../../../../types/ocpi/OCPIEndpoint';
 import { OCPIResponse } from '../../../../types/ocpi/OCPIResponse';
 import { OCPIRole } from '../../../../types/ocpi/OCPIRole';
 import { OCPIStatusCode } from '../../../../types/ocpi/OCPIStatusCode';
 import OCPIUtils from '../../OCPIUtils';
-import { ObjectID } from 'mongodb';
 import { PricingSource } from '../../../../types/Pricing';
 import RoamingUtils from '../../../../utils/RoamingUtils';
 import { ServerAction } from '../../../../types/Server';
@@ -115,8 +115,8 @@ export default class OCPIUtilsService {
     // Result
     const ocpiLocationsResult: DataResult<OCPILocation> = { count: 0, result: [] };
     // Get all sites
-    const sites = await SiteStorage.getSites(tenant.id,
-      { issuer: true, onlyPublicSite: true },
+    const sites = await SiteStorage.getSites(tenant,
+      { issuer: true, public: true },
       limit === 0 ? Constants.DB_PARAMS_MAX_LIMIT : { limit, skip },
       ['id', 'name', 'address', 'lastChangedOn', 'createdOn']);
     // Convert Sites to Locations
@@ -126,8 +126,8 @@ export default class OCPIUtilsService {
     }
     let nbrOfSites = sites.count;
     if (nbrOfSites === -1) {
-      const sitesCount = await SiteStorage.getSites(tenant.id,
-        { issuer: true, onlyPublicSite: true }, Constants.DB_PARAMS_COUNT_ONLY);
+      const sitesCount = await SiteStorage.getSites(tenant,
+        { issuer: true, public: true }, Constants.DB_PARAMS_COUNT_ONLY);
       nbrOfSites = sitesCount.count;
     }
     // Set count
@@ -141,7 +141,7 @@ export default class OCPIUtilsService {
     // Result
     const tokens: OCPIToken[] = [];
     // Get all tokens
-    const tags = await TagStorage.getTags(tenant.id,
+    const tags = await TagStorage.getTags(tenant,
       { issuer: true, dateFrom, dateTo, withUsersOnly: true, withUser: true },
       { limit, skip },
       [ 'id', 'userID', 'user.deleted', 'lastChangedOn' ]);
@@ -151,7 +151,7 @@ export default class OCPIUtilsService {
         uid: tag.id,
         type: OCPIUtils.getOCPITokenTypeFromID(tag.id),
         auth_id: tag.userID,
-        visual_number: tag.userID,
+        visual_number: tag.visualID,
         issuer: tenant.name,
         valid: !Utils.isNullOrUndefined(tag.user),
         whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
@@ -160,7 +160,7 @@ export default class OCPIUtilsService {
     }
     let nbrOfTags = tags.count;
     if (nbrOfTags === -1) {
-      const tagsCount = await TagStorage.getTags(tenant.id,
+      const tagsCount = await TagStorage.getTags(tenant,
         { issuer: true, dateFrom, dateTo, withUsersOnly: true },
         Constants.DB_PARAMS_COUNT_ONLY);
       nbrOfTags = tagsCount.count;
@@ -188,6 +188,7 @@ export default class OCPIUtilsService {
       },
       evses: withChargingStations ?
         await OCPIUtilsService.getEvsesFromSite(tenant, site.id, options, Constants.DB_PARAMS_MAX_LIMIT) : [],
+      operator: await OCPIUtilsService.getOperatorBusinessDetails(tenant) ?? { name: 'Undefined' },
       last_updated: site.lastChangedOn ? site.lastChangedOn : site.createdOn,
       opening_times: this.buildOpeningTimes(tenant, site)
     };
@@ -198,8 +199,8 @@ export default class OCPIUtilsService {
     switch (tenant?.id) {
       // SLF
       case '5be7fb271014d90008992f06':
-        // Mougins
         switch (site.id) {
+          // Mougins
           case '5abeba8d4bae1457eb565e5b':
             return {
               regular_hours: [
@@ -227,6 +228,73 @@ export default class OCPIUtilsService {
                   weekday: 5,
                   period_begin: '08:00',
                   period_end: '18:00'
+                },
+              ],
+              twentyfourseven: false
+            };
+          // Caen
+          case '5abeba9e4bae1457eb565e66':
+            return {
+              regular_hours: [
+                {
+                  weekday: 1, // Monday
+                  period_begin: '00:00',
+                  period_end: '08:00'
+                },
+                {
+                  weekday: 1, // Monday
+                  period_begin: '18:00',
+                  period_end: '23:59'
+                },
+                {
+                  weekday: 2,
+                  period_begin: '00:00',
+                  period_end: '08:00'
+                },
+                {
+                  weekday: 2,
+                  period_begin: '18:00',
+                  period_end: '23:59'
+                },
+                {
+                  weekday: 3,
+                  period_begin: '00:00',
+                  period_end: '08:00'
+                },
+                {
+                  weekday: 3,
+                  period_begin: '18:00',
+                  period_end: '23:59'
+                },
+                {
+                  weekday: 4,
+                  period_begin: '00:00',
+                  period_end: '08:00'
+                },
+                {
+                  weekday: 4,
+                  period_begin: '18:00',
+                  period_end: '23:59'
+                },
+                {
+                  weekday: 5,
+                  period_begin: '00:00',
+                  period_end: '08:00'
+                },
+                {
+                  weekday: 5,
+                  period_begin: '18:00',
+                  period_end: '23:59'
+                },
+                {
+                  weekday: 6,
+                  period_begin: '00:00',
+                  period_end: '23:59'
+                },
+                {
+                  weekday: 7,
+                  period_begin: '00:00',
+                  period_end: '23:59'
                 },
               ],
               twentyfourseven: false
@@ -314,7 +382,7 @@ export default class OCPIUtilsService {
   }
 
   public static convertSimplePricingSetting2OCPITariff(simplePricingSetting: SimplePricingSetting): OCPITariff {
-    let tariff: OCPITariff;
+    const tariff = {} as OCPITariff;
     tariff.id = '1';
     tariff.currency = simplePricingSetting.currency;
     tariff.elements[0].price_components[0].type = OCPITariffDimensionType.TIME;
@@ -324,11 +392,11 @@ export default class OCPIUtilsService {
     return tariff;
   }
 
-  public static async buildOCPICredentialObject(tenantID: string, token: string, role: string, versionUrl?: string): Promise<OCPICredential> {
+  public static async buildOCPICredentialObject(tenant: Tenant, token: string, role: string, versionUrl?: string): Promise<OCPICredential> {
     // Credential
-    const credential: OCPICredential = {} as OCPICredential;
+    const credential = {} as OCPICredential;
     // Get ocpi service configuration
-    const ocpiSetting = await SettingStorage.getOCPISettings(tenantID);
+    const ocpiSetting = await SettingStorage.getOCPISettings(tenant);
     // Define version url
     credential.url = (versionUrl ? versionUrl : `${Configuration.getOCPIEndpointConfig().baseUrl}/ocpi/${role.toLowerCase()}/versions`);
     // Check if available
@@ -343,18 +411,17 @@ export default class OCPIUtilsService {
       }
       credential.business_details = ocpiSetting.ocpi.businessDetails;
     }
-    // Return credential object
     return credential;
   }
 
-  public static convertEndpoints(endpointsEntity: any): OCPIEndpoint[] {
-    const endpoints: OCPIEndpoint[] = [];
-    if (endpointsEntity && endpointsEntity.endpoints) {
-      for (const endpoint of endpointsEntity.endpoints) {
-        endpoints[endpoint.identifier] = endpoint.url;
+  public static convertAvailableEndpoints(endpointURLs: OCPIEndpointVersions): OCPIAvailableEndpoints {
+    const availableEndpoints = {} as OCPIAvailableEndpoints;
+    if (!Utils.isEmptyArray(endpointURLs.endpoints)) {
+      for (const endpoint of endpointURLs.endpoints) {
+        availableEndpoints[endpoint.identifier] = endpoint.url;
       }
     }
-    return endpoints;
+    return availableEndpoints;
   }
 
   public static async getEvsesFromSite(tenant: Tenant, siteID: string,
@@ -362,8 +429,8 @@ export default class OCPIUtilsService {
     // Build evses array
     const evses: OCPIEvse[] = [];
     // Convert charging stations to evse(s)
-    const chargingStations = await ChargingStationStorage.getChargingStations(tenant.id,
-      { ...dbFilters, siteIDs: [ siteID ], public: true, issuer: true },
+    const chargingStations = await ChargingStationStorage.getChargingStations(tenant,
+      { ...dbFilters, siteIDs: [ siteID ], public: true, issuer: true, withSiteArea: true },
       dbParams ?? Constants.DB_PARAMS_MAX_LIMIT,
       [ 'id', 'chargePoints', 'connectors', 'coordinates', 'lastSeen', 'siteAreaID', 'siteID' ]);
     for (const chargingStation of chargingStations.result) {
@@ -380,7 +447,7 @@ export default class OCPIUtilsService {
         chargingStationEvses.push(...OCPIUtilsService.convertChargingStation2MultipleEvses(tenant, chargingStation, null, options));
       }
       // Always update OCPI data
-      await ChargingStationStorage.saveChargingStationOcpiData(tenant.id, chargingStation.id, { evses: chargingStationEvses });
+      await ChargingStationStorage.saveChargingStationOcpiData(tenant, chargingStation.id, { evses: chargingStationEvses });
       evses.push(...chargingStationEvses);
     }
     return evses;
@@ -396,7 +463,7 @@ export default class OCPIUtilsService {
     }
   }
 
-  public static async updateTransaction(tenantId: string, session: OCPISession): Promise<void> {
+  public static async updateTransaction(tenant: Tenant, session: OCPISession): Promise<void> {
     if (!OCPIUtilsService.validateSession(session)) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -413,9 +480,9 @@ export default class OCPIUtilsService {
     if (!session.kwh) {
       session.kwh = 0;
     }
-    let transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenantId, session.id);
+    let transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant, session.id);
     if (!transaction) {
-      const user = await UserStorage.getUser(tenantId, session.auth_id);
+      const user = await UserStorage.getUser(tenant, session.auth_id);
       if (!user) {
         throw new AppError({
           source: Constants.CENTRAL_SERVER,
@@ -427,7 +494,7 @@ export default class OCPIUtilsService {
         });
       }
       const evse = session.location.evses[0];
-      const chargingStation = await ChargingStationStorage.getChargingStationByOcpiEvseID(tenantId, evse.evse_id);
+      const chargingStation = await ChargingStationStorage.getChargingStationByOcpiEvseID(tenant, evse.evse_id);
       if (!chargingStation) {
         throw new AppError({
           source: Constants.CENTRAL_SERVER,
@@ -478,7 +545,7 @@ export default class OCPIUtilsService {
     }
     if (moment(session.last_updated).isBefore(transaction.lastConsumption.timestamp)) {
       await Logging.logDebug({
-        tenantID: tenantId,
+        tenantID: tenant.id,
         action: ServerAction.OCPI_PUSH_SESSION,
         source: Constants.CENTRAL_SERVER,
         module: MODULE_NAME, method: 'updateTransaction',
@@ -488,7 +555,7 @@ export default class OCPIUtilsService {
       return;
     }
     if (session.kwh > 0) {
-      await OCPIUtilsService.computeAndSaveConsumption(tenantId, transaction, session);
+      await OCPIUtilsService.computeAndSaveConsumption(tenant, transaction, session);
     }
     if (!transaction.ocpiData) {
       transaction.ocpiData = {};
@@ -522,11 +589,11 @@ export default class OCPIUtilsService {
         userID: transaction.userID
       };
     }
-    await TransactionStorage.saveTransaction(tenantId, transaction);
-    await this.updateConnector(tenantId, transaction);
+    await TransactionStorage.saveTransaction(tenant, transaction);
+    await this.updateConnector(tenant, transaction);
   }
 
-  public static async processCdr(tenantId: string, cdr: OCPICdr): Promise<void> {
+  public static async processCdr(tenant: Tenant, cdr: OCPICdr): Promise<void> {
     if (!OCPIUtilsService.validateCdr(cdr)) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -537,7 +604,7 @@ export default class OCPIUtilsService {
         ocpiError: OCPIStatusCode.CODE_2001_INVALID_PARAMETER_ERROR
       });
     }
-    const transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenantId, cdr.id);
+    const transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant, cdr.id);
     if (!transaction) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -585,11 +652,11 @@ export default class OCPIUtilsService {
       transaction.ocpiData = {};
     }
     transaction.ocpiData.cdr = cdr;
-    await TransactionStorage.saveTransaction(tenantId, transaction);
-    await this.updateConnector(tenantId, transaction);
+    await TransactionStorage.saveTransaction(tenant, transaction);
+    await this.updateConnector(tenant, transaction);
   }
 
-  public static async updateToken(tenantId: string, ocpiEndpoint: OCPIEndpoint, token: OCPIToken, tag: Tag, emspUser: User): Promise<void> {
+  public static async updateToken(tenant: Tenant, ocpiEndpoint: OCPIEndpoint, token: OCPIToken, tag: Tag, emspUser: User): Promise<void> {
     if (!OCPIUtilsService.validateToken(token)) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -626,7 +693,6 @@ export default class OCPIUtilsService {
       }
       const tagToSave = {
         id: token.uid,
-        visualID: new ObjectID().toString(),
         issuer: false,
         userID: emspUser.id,
         active: token.valid === true ? true : false,
@@ -636,7 +702,7 @@ export default class OCPIUtilsService {
       };
       // Save Tag
       if (!tag || JSON.stringify(tagToSave.ocpiToken) !== JSON.stringify(tag.ocpiToken)) {
-        await TagStorage.saveTag(tenantId, tagToSave);
+        await TagStorage.saveTag(tenant, tagToSave);
       }
     } else {
       // Unknown User
@@ -662,22 +728,21 @@ export default class OCPIUtilsService {
         locale: Utils.getLocaleFromLanguage(token.language),
       } as User;
       // Save User
-      emspUser.id = await UserStorage.saveUser(tenantId, emspUser);
-      await UserStorage.saveUserRole(tenantId, emspUser.id, UserRole.BASIC);
-      await UserStorage.saveUserStatus(tenantId, emspUser.id, UserStatus.ACTIVE);
+      emspUser.id = await UserStorage.saveUser(tenant, emspUser);
+      await UserStorage.saveUserRole(tenant, emspUser.id, UserRole.BASIC);
+      await UserStorage.saveUserStatus(tenant, emspUser.id, UserStatus.ACTIVE);
       const tagToSave = {
         id: token.uid,
-        visualID: new ObjectID().toString(),
         issuer: false,
         userID: emspUser.id,
         active: token.valid === true ? true : false,
-        description: token.visual_number,
+        description: 'OCPI token',
         lastChangedOn: token.last_updated,
         ocpiToken: token
       };
       // Save Tag
       if (!tag || JSON.stringify(tagToSave.ocpiToken) !== JSON.stringify(tag.ocpiToken)) {
-        await TagStorage.saveTag(tenantId, tagToSave);
+        await TagStorage.saveTag(tenant, tagToSave);
       }
     }
   }
@@ -706,6 +771,10 @@ export default class OCPIUtilsService {
         type = OCPIConnectorType.IEC_62196_T2_COMBO;
         format = OCPIConnectorFormat.CABLE;
         break;
+      case ConnectorType.DOMESTIC:
+        type = OCPIConnectorType.DOMESTIC_E;
+        format = OCPIConnectorFormat.SOCKET;
+        break;
     }
     return {
       id: RoamingUtils.buildEvseID(countryId, partyId, chargingStation.id, connector.connectorId),
@@ -731,6 +800,10 @@ export default class OCPIUtilsService {
     return true;
   }
 
+  private static async getOperatorBusinessDetails(tenant: Tenant): Promise<OCPIBusinessDetails> {
+    return (await SettingStorage.getOCPISettings(tenant)).ocpi.businessDetails;
+  }
+
   private static convertChargingStation2MultipleEvses(tenant: Tenant, chargingStation: ChargingStation,
       chargePoint: ChargePoint, options: OCPILocationOptions): OCPIEvse[] {
     // Loop through connectors and send one evse per connector
@@ -746,7 +819,7 @@ export default class OCPIUtilsService {
         evse_id: RoamingUtils.buildEvseID(options.countryID, options.partyID,
           chargingStation.id, connector.connectorId),
         location_id: chargingStation.siteID,
-        status: OCPIUtilsService.convertStatus2OCPIStatus(connector.status),
+        status: chargingStation.inactive ? OCPIEvseStatus.INOPERATIVE : OCPIUtilsService.convertStatus2OCPIStatus(connector.status),
         capabilities: [OCPICapability.REMOTE_START_STOP_CAPABLE, OCPICapability.RFID_READER],
         connectors: [OCPIUtilsService.convertConnector2OCPIConnector(tenant, chargingStation, connector, options.countryID, options.partyID)],
         last_updated: chargingStation.lastSeen,
@@ -780,11 +853,11 @@ export default class OCPIUtilsService {
     const connectorOneStatus = OCPIUtilsService.convertToOneConnectorStatus(connectors);
     // Build evse
     const evse: OCPIEvse = {
-      // Force the connector id to always be 1 on charging station that have mutually exclusive connectors
-      uid: OCPIUtils.buildEvseUID(chargingStation, { connectorId: 1, status: connectorOneStatus }),
-      evse_id: RoamingUtils.buildEvseID(options.countryID, options.partyID, chargingStation.id, 1),
+      // Evse uid must contains the chargePoint.id
+      uid: OCPIUtils.buildEvseUID(chargingStation, connectors[0]),
+      evse_id: RoamingUtils.buildEvseID(options.countryID, options.partyID, chargingStation.id, chargePoint.chargePointID),
       location_id: chargingStation.siteID,
-      status: OCPIUtilsService.convertStatus2OCPIStatus(connectorOneStatus),
+      status: chargingStation.inactive ? OCPIEvseStatus.INOPERATIVE : OCPIUtilsService.convertStatus2OCPIStatus(connectorOneStatus),
       capabilities: [OCPICapability.REMOTE_START_STOP_CAPABLE, OCPICapability.RFID_READER],
       connectors: ocpiConnectors,
       last_updated: chargingStation.lastSeen,
@@ -848,34 +921,58 @@ export default class OCPIUtilsService {
     }
   }
 
-  // TODO: Implement the tariff module under dev in Gireve, to provide in UI later on
-  // FIXME: add tariff id from the simple pricing settings remapping
   private static buildTariffID(tenant: Tenant, chargingStation: ChargingStation): string {
+    const defaultTariff = 'Default';
     switch (tenant?.id) {
       // SLF
       case '5be7fb271014d90008992f06':
         // Check Site Area
-        // FIXME: siteAreaID must always be an attribute non null
         switch (chargingStation?.siteAreaID) {
           // Mougins - South
           case '5abebb1b4bae1457eb565e98':
-            return 'FR*SLF_AC_Sud2';
+            return 'AC_Sud2';
           // Mougins - South - Fastcharging
           case '5b72cef274ae30000855e458':
-            return 'FR*SLF_DC_Sud';
+            return 'DC_Sud';
         }
-        return '';
+        return defaultTariff;
       // Proviridis
       case '5e2701b248aaa90007904cca':
         return '1';
       // Exadys
       case '5ff4c5ca1804a20013ce8a23':
-        return 'FR*EXA_Tarif_Standard';
+        return 'Tarif_Standard';
       // Inouid
       case '602e260fa9b0290023fb68d2':
-        return 'FR*ISE_Payant1';
+        return 'Payant1';
+      // Properphi
+      case '603655d291930d0014017e0a':
+        switch (chargingStation?.siteAreaID) {
+          // F3C Baume les dames
+          case '60990f1cc48de10014ea4fdc':
+            switch (chargingStation?.id) {
+              case 'F3CBaume-CAHORS25DC':
+                return 'EVSE_DC';
+              case 'F3CBaume-LAFON22AC':
+                return 'EVSE_AC';
+            }
+            return defaultTariff;
+          // Garage Cheval
+          case '60e40cfc32a7e60014672290':
+            switch (chargingStation?.id) {
+              case 'F3CALBON-CAHORS25DC':
+                return 'EVSE_DC';
+              case 'F3CALBON-SCHNEIDER22AC':
+                return 'EVSE_AC';
+            }
+            return defaultTariff;
+        }
+        return defaultTariff;
+      // eChargeNow
+      case '60b9f4336493830016c9a68c':
+        return 'Tarif_Standard';
     }
-    return '';
+    return defaultTariff;
   }
 
   private static convertOCPINumberOfConnectedPhases2PowerType(ocpiNumberOfConnectedPhases: number): OCPIPowerType {
@@ -889,7 +986,7 @@ export default class OCPIUtilsService {
     }
   }
 
-  private static async computeAndSaveConsumption(tenantId: string, transaction: Transaction, session: OCPISession): Promise<void> {
+  private static async computeAndSaveConsumption(tenant: Tenant, transaction: Transaction, session: OCPISession): Promise<void> {
     const consumptionWh = Utils.createDecimal(session.kwh).mul(1000).minus(Utils.convertToFloat(transaction.lastConsumption.value)).toNumber();
     const duration = Utils.createDecimal(moment(session.last_updated).diff(transaction.lastConsumption.timestamp, 'milliseconds')).div(1000).toNumber();
     if (consumptionWh > 0 || duration > 0) {
@@ -925,7 +1022,7 @@ export default class OCPIUtilsService {
         currencyCode: session.currency,
         cumulatedAmount: session.total_cost
       } as Consumption;
-      await ConsumptionStorage.saveConsumption(tenantId, consumption);
+      await ConsumptionStorage.saveConsumption(tenant, consumption);
     }
   }
 
@@ -967,8 +1064,8 @@ export default class OCPIUtilsService {
     return true;
   }
 
-  private static async updateConnector(tenantId: string, transaction: Transaction): Promise<void> {
-    const chargingStation = await ChargingStationStorage.getChargingStation(tenantId, transaction.chargeBoxID);
+  private static async updateConnector(tenant: Tenant, transaction: Transaction): Promise<void> {
+    const chargingStation = await ChargingStationStorage.getChargingStation(tenant, transaction.chargeBoxID);
     if (chargingStation && chargingStation.connectors) {
       for (const connector of chargingStation.connectors) {
         if (connector.connectorId === transaction.connectorId && connector.currentTransactionID === 0 || connector.currentTransactionID === transaction.id) {
@@ -993,7 +1090,7 @@ export default class OCPIUtilsService {
             connector.currentInstantWatts = 0;
             connector.currentInactivityStatus = null;
           }
-          await ChargingStationStorage.saveChargingStation(tenantId, chargingStation);
+          await ChargingStationStorage.saveChargingStationConnectors(tenant, chargingStation.id, chargingStation.connectors);
         }
       }
     }

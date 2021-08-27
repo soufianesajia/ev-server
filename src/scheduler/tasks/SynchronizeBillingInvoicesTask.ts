@@ -12,16 +12,16 @@ import Utils from '../../utils/Utils';
 export default class SynchronizeBillingInvoicesTask extends SchedulerTask {
   async processTenant(tenant: Tenant, taskConfig: BillingInvoiceSynchronizationTaskConfig): Promise<void> {
     // Get the lock
-    const billingLock = await LockingHelper.createBillingSyncInvoicesLock(tenant.id);
+    const billingLock = await LockingHelper.acquireBillingSyncInvoicesLock(tenant.id);
     if (billingLock) {
       try {
-        const billingImpl = await BillingFactory.getBillingImpl(tenant.id);
+        const billingImpl = await BillingFactory.getBillingImpl(tenant);
         if (billingImpl) {
           // Synchronize new Invoices and Invoices changes
           const synchronizeActionResults = await billingImpl.synchronizeInvoices();
           if (synchronizeActionResults.inError > 0) {
             await NotificationHandler.sendBillingInvoicesSynchronizationFailed(
-              tenant.id,
+              tenant,
               {
                 nbrInvoicesInError: synchronizeActionResults.inError,
                 evseDashboardURL: Utils.buildEvseURL(tenant.subdomain),

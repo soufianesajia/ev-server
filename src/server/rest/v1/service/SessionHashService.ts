@@ -15,26 +15,33 @@ import Utils from '../../../../utils/Utils';
 const MODULE_NAME = 'SessionHashService';
 
 export default class SessionHashService {
-  public static async isSessionHashUpdated(req: Request, res: Response, next: NextFunction): Promise<boolean> {
+  public static async areTokenUserAndTenantStillValid(req: Request, res: Response, next: NextFunction): Promise<boolean> {
     // Get tenant id, user id and hash ID
     const userID = req.user.id;
     const tenantID = req.user.tenantID;
     const userHashID = req.user.userHashID;
     const tenantHashID = req.user.tenantHashID;
-    // No session hash in master tenant
-    if (tenantID === Constants.DEFAULT_TENANT) {
-      return false;
-    }
-    const tenant = await TenantStorage.getTenant(tenantID);
-    const user = await UserStorage.getUser(tenantID, userID);
     try {
+      // Get Tenant
+      let tenant: Tenant;
+      if (tenantID === Constants.DEFAULT_TENANT) {
+        tenant = { id: Constants.DEFAULT_TENANT } as Tenant;
+      } else {
+        tenant = await TenantStorage.getTenant(tenantID);
+      }
+      // Get User
+      const user = await UserStorage.getUser(tenant, userID);
       // User or Tenant no longer exists
       if (!tenant || !user) {
         return true;
       }
-      // Set
+      // Set in HTTP request
       req.user.user = user;
       req.tenant = tenant;
+      // No session hash in master tenant
+      if (tenantID === Constants.DEFAULT_TENANT) {
+        return false;
+      }
       // Check User's Hash
       if (userHashID !== this.buildUserHashID(user)) {
         throw new AppError({

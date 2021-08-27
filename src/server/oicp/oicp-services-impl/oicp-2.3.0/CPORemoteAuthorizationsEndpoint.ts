@@ -1,7 +1,7 @@
 // Hubject lets you provide the endpoint in the HBS portal.
 // Endpoint for eRoamingAuthorizeRemoteStart and eRoamingAuthorizeRemoteStop from the eMSP
 
-import ChargingStation, { Connector, RemoteAuthorization } from '../../../../types/ChargingStation';
+import ChargingStation, { Connector } from '../../../../types/ChargingStation';
 import { NextFunction, Request, Response } from 'express';
 import { OCPPRemoteStartStopStatus, OCPPRemoteStartTransactionCommandResult, OCPPRemoteStopTransactionCommandResult } from '../../../../types/ocpp/OCPPClient';
 import { OICPAuthorizeRemoteStartCpoReceive, OICPAuthorizeRemoteStopCpoReceive } from '../../../../types/oicp/OICPAuthorize';
@@ -60,7 +60,7 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
     const connector = chargingStationConnector.connector;
     const chargingStation = chargingStationConnector.chargingStation;
     if (!chargingStation) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_START,
         message: `Charging Station ID '${authorizeRemoteStart.EvseID}' not found`,
@@ -69,7 +69,7 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
       return OICPUtils.noSuccess(session, `EVSE for EvseID '${authorizeRemoteStart.EvseID}' not found`);
     }
     if (!connector) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_START,
         message: `Connector for Charging Station ID '${authorizeRemoteStart.EvseID}' not found`,
@@ -78,7 +78,7 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
       return OICPUtils.noSuccess(session, `EVSE for EvseID '${authorizeRemoteStart.EvseID}' not found`);
     }
     if (!chargingStation.issuer || !chargingStation.public) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_START,
         message: `Charging Station ID '${authorizeRemoteStart.EvseID}' cannot be used with OICP`,
@@ -86,8 +86,8 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
       });
       return OICPUtils.noSuccess(session, `EVSE '${authorizeRemoteStart.EvseID}' cannot be used with OICP`);
     }
-    if (!(connector.status === ChargePointStatus.AVAILABLE || connector.status === ChargePointStatus.PREPARING)) {
-      await Logging.logDebug({
+    if (connector.status !== ChargePointStatus.AVAILABLE && connector.status !== ChargePointStatus.PREPARING) {
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_START,
         message: `Charging Station ID '${authorizeRemoteStart.EvseID}' is not available`,
@@ -99,7 +99,7 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
       chargingStation.remoteAuthorizations = [];
     }
     // Check if there is already a authorization for this charging station
-    const existingAuthorization: RemoteAuthorization = chargingStation.remoteAuthorizations.find(
+    const existingAuthorization = chargingStation.remoteAuthorizations.find(
       (authorization) => authorization.connectorId === connector.connectorId);
     if (existingAuthorization) {
       // Check if authorization is from same user or different user
@@ -109,6 +109,7 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
           // Current remote authorization fails due to valid remote authorization of different user
           await Logging.logDebug({
             tenantID: tenant.id,
+            siteID: chargingStation.siteID,
             source: chargingStation.id,
             action: ServerAction.OICP_AUTHORIZE_REMOTE_START,
             message: `An existing remote authorization exists for Charging Station '${chargingStation.id}' and Connector ID ${connector.connectorId}`,
@@ -135,7 +136,8 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
       );
     }
     // Save Auth
-    await ChargingStationStorage.saveChargingStation(tenant.id, chargingStation);
+    await ChargingStationStorage.saveChargingStationRemoteAuthorizations(
+      tenant, chargingStation.id, chargingStation.remoteAuthorizations);
     // Start the transaction
     const result = await this.remoteStartTransaction(tenant, chargingStation, connector, authorizeRemoteStart);
     if (result?.status === OCPPRemoteStartStopStatus.ACCEPTED) {
@@ -151,38 +153,39 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
     const session = {} as Partial<OICPSession>;
     session.id = authorizeRemoteStop.SessionID;
     session.providerID = authorizeRemoteStop.ProviderID;
-    const transaction = await TransactionStorage.getOICPTransactionBySessionID(tenant.id, authorizeRemoteStop.SessionID);
+    const transaction = await TransactionStorage.getOICPTransactionBySessionID(tenant, authorizeRemoteStop.SessionID);
     if (!transaction) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_STOP,
-        message: `Transaction with OICP Transaction ID '${authorizeRemoteStop.SessionID}' does not exists`,
+        message: `OICP Transaction ID '${authorizeRemoteStop.SessionID}' does not exists`,
         module: MODULE_NAME, method: 'authorizeRemoteStop'
       });
       return OICPUtils.noSuccess(session, `Transaction with OICP Transaction ID '${authorizeRemoteStop.SessionID}' does not exists`);
     }
     if (!transaction.issuer) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_STOP,
-        message: `Transaction with OICP Transaction ID '${authorizeRemoteStop.SessionID}' has been issued locally`,
+        message: `OICP Transaction ID '${authorizeRemoteStop.SessionID}' has been issued locally`,
         module: MODULE_NAME, method: 'authorizeRemoteStop'
       });
       return OICPUtils.noSuccess(session, `Transaction with OICP Transaction ID '${authorizeRemoteStop.SessionID}' has been issued locally`);
     }
     if (transaction.stop) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_STOP,
-        message: `Transaction with OICP Transaction ID '${authorizeRemoteStop.SessionID}' is already stopped`,
+        message: `OICP Transaction ID '${authorizeRemoteStop.SessionID}' is already stopped`,
         module: MODULE_NAME, method: 'authorizeRemoteStop'
       });
       return OICPUtils.noSuccess(session, `Transaction with OICP Transaction ID '${authorizeRemoteStop.SessionID}' is already stopped`);
     }
-    const chargingStation = await ChargingStationStorage.getChargingStation(tenant.id, transaction.chargeBoxID);
+    const chargingStation = await ChargingStationStorage.getChargingStation(tenant, transaction.chargeBoxID);
     if (!chargingStation) {
-      await Logging.logDebug({
+      await Logging.logError({
         tenantID: tenant.id,
+        siteID: transaction.siteID,
         source: transaction.chargeBoxID,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_STOP,
         message: `Charging Station '${transaction.chargeBoxID}' not found`,
@@ -200,10 +203,11 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
 
   private async remoteStartTransaction(tenant: Tenant, chargingStation: ChargingStation,
       connector: Connector, authorizeRemoteStart: OICPAuthorizeRemoteStartCpoReceive): Promise<OCPPRemoteStartTransactionCommandResult> {
-    const chargingStationClient = await ChargingStationClientFactory.getChargingStationClient(tenant.id, chargingStation);
+    const chargingStationClient = await ChargingStationClientFactory.getChargingStationClient(tenant, chargingStation);
     if (!chargingStationClient) {
       await Logging.logError({
         tenantID: tenant.id,
+        siteID: chargingStation.siteID,
         source: chargingStation.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_START,
         message: `Charging Station '${chargingStation.id}' not found`,
@@ -219,10 +223,11 @@ export default class CPORemoteAuthorizationsEndpoint extends AbstractEndpoint {
   }
 
   private async remoteStopTransaction(tenant: Tenant, chargingStation: ChargingStation, transactionId: number): Promise<OCPPRemoteStopTransactionCommandResult> {
-    const chargingStationClient = await ChargingStationClientFactory.getChargingStationClient(tenant.id, chargingStation);
+    const chargingStationClient = await ChargingStationClientFactory.getChargingStationClient(tenant, chargingStation);
     if (!chargingStationClient) {
       await Logging.logError({
         tenantID: tenant.id,
+        siteID: chargingStation.siteID,
         source: chargingStation.id,
         action: ServerAction.OICP_AUTHORIZE_REMOTE_STOP,
         message: `Charging Station '${chargingStation.id}' not found`,

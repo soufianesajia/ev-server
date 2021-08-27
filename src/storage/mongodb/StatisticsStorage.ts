@@ -2,6 +2,7 @@ import StatisticFilter, { ChargingStationStats, StatsGroupBy, UserStats } from '
 
 import DatabaseUtils from './DatabaseUtils';
 import Logging from '../../utils/Logging';
+import Tenant from '../../types/Tenant';
 import Utils from '../../utils/Utils';
 import global from '../../types/GlobalType';
 
@@ -9,11 +10,11 @@ const MODULE_NAME = 'StatisticsStorage';
 
 export default class StatisticsStorage {
 
-  static async getChargingStationStats(tenantID: string, params: StatisticFilter, groupBy: string): Promise<ChargingStationStats[]> {
+  static async getChargingStationStats(tenant: Tenant, params: StatisticFilter, groupBy: string): Promise<ChargingStationStats[]> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getChargingStationStats');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getChargingStationStats');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Build filter
     const filters: any = {};
     // Date provided?
@@ -35,13 +36,13 @@ export default class StatisticsStorage {
     // Site
     if (!Utils.isEmptyArray(params.siteIDs)) {
       filters.siteID = {
-        $in: params.siteIDs.map((siteID) => Utils.convertToObjectID(siteID))
+        $in: params.siteIDs.map((siteID) => DatabaseUtils.convertToObjectID(siteID))
       };
     }
     // Filter on Site Area?
     if (!Utils.isEmptyArray(params.siteAreaIDs)) {
       filters.siteAreaID = {
-        $in: params.siteAreaIDs.map((siteAreaID) => Utils.convertToObjectID(siteAreaID))
+        $in: params.siteAreaIDs.map((siteAreaID) => DatabaseUtils.convertToObjectID(siteAreaID))
       };
     }
     // Filter on Charge Box?
@@ -53,7 +54,7 @@ export default class StatisticsStorage {
     // Filter on User?
     if (!Utils.isEmptyArray(params.userIDs)) {
       filters.userID = {
-        $in: params.userIDs.map((userID) => Utils.convertToObjectID(userID))
+        $in: params.userIDs.map((userID) => DatabaseUtils.convertToObjectID(userID))
       };
     }
     // Create Aggregation
@@ -122,19 +123,19 @@ export default class StatisticsStorage {
       $sort: { 'month': 1, 'unit': 1, 'chargeBox': 1 }
     });
     // Read DB
-    const chargingStationStatsMDB = await global.database.getCollection<any>(tenantID, 'transactions')
+    const chargingStationStatsMDB = await global.database.getCollection<any>(tenant.id, 'transactions')
       .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getChargingStationStats', uniqueTimerID, chargingStationStatsMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getChargingStationStats', uniqueTimerID, chargingStationStatsMDB);
     return chargingStationStatsMDB;
   }
 
-  static async getUserStats(tenantID: string, params: StatisticFilter, groupBy: string): Promise<UserStats[]> {
+  static async getUserStats(tenant: Tenant, params: StatisticFilter, groupBy: string): Promise<UserStats[]> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getUserStats');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getUserStats');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Build filter
     const filters: any = {};
     // Date provided?
@@ -156,13 +157,13 @@ export default class StatisticsStorage {
     // Filter on Site?
     if (!Utils.isEmptyArray(params.siteIDs)) {
       filters.siteID = {
-        $in: params.siteIDs.map((siteID) => Utils.convertToObjectID(siteID))
+        $in: params.siteIDs.map((siteID) => DatabaseUtils.convertToObjectID(siteID))
       };
     }
     // Filter on Site Area?
     if (!Utils.isEmptyArray(params.siteAreaIDs)) {
       filters.siteAreaID = {
-        $in: params.siteAreaIDs.map((siteAreaID) => Utils.convertToObjectID(siteAreaID))
+        $in: params.siteAreaIDs.map((siteAreaID) => DatabaseUtils.convertToObjectID(siteAreaID))
       };
     }
     // Filter on Charge Box?
@@ -174,7 +175,7 @@ export default class StatisticsStorage {
     // Filter on User?
     if (!Utils.isEmptyArray(params.userIDs)) {
       filters.userID = {
-        $in: params.userIDs.map((userID) => Utils.convertToObjectID(userID))
+        $in: params.userIDs.map((userID) => DatabaseUtils.convertToObjectID(userID))
       };
     }
     // Create Aggregation
@@ -234,7 +235,7 @@ export default class StatisticsStorage {
     }
     // Lookup for users
     DatabaseUtils.pushUserLookupInAggregation({
-      tenantID, aggregation, localField: '_id.userID', foreignField: '_id',
+      tenantID: tenant.id, aggregation, localField: '_id.userID', foreignField: '_id',
       asField: 'user', oneToOneCardinality: true, oneToOneCardinalityNotNull: true
     }, [ { $project: { _id: 1, name: 1, firstName: 1 } } ]);
     // Single Record
@@ -252,11 +253,11 @@ export default class StatisticsStorage {
       $sort: { 'month': 1, 'unit': 1, 'userID': 1 } // Instead of chargeBox userID ?
     });
     // Read DB
-    const userStatsMDB = await global.database.getCollection<any>(tenantID, 'transactions')
+    const userStatsMDB = await global.database.getCollection<any>(tenant.id, 'transactions')
       .aggregate(aggregation, { allowDiskUse: true })
       .toArray();
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getUserStats', uniqueTimerID, userStatsMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getUserStats', uniqueTimerID, userStatsMDB);
     return userStatsMDB;
   }
 }

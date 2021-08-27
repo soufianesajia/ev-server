@@ -23,7 +23,7 @@ const testData = {
   createdUsersDefaultTenant: []
 };
 
-describe('Authentication Service (tenant utall)', function() {
+describe('Authentication Service (utall)', function() {
   this.timeout(50000);
 
   before(() => {
@@ -34,16 +34,16 @@ describe('Authentication Service (tenant utall)', function() {
     testData.superAdminPassword = config.get('superadmin.password');
   });
 
-  after(() => {
+  after(async () => {
     // Delete all created users again
     if (testData.centralServiceDefaultTenant) {
-      testData.createdUsersDefaultTenant.forEach(async (user) => {
+      for (const user of testData.createdUsersDefaultTenant) {
         await testData.centralServiceDefaultTenant.userApi.delete(user.id);
-      });
+      }
     }
-    testData.createdUsersAdminTenant.forEach(async (user) => {
+    for (const user of testData.createdUsersAdminTenant) {
       await CentralServerService.defaultInstance.userApi.delete(user.id);
-    });
+    }
   });
 
   describe('Success cases', () => {
@@ -161,7 +161,7 @@ describe('Authentication Service (tenant utall)', function() {
     //   testData.createdUsersAdminTenant.push(newUser);
     //   const userAPI = new CentralServerService(testData.adminTenant, {
     //     email: newUser.email,
-    //     password: newUser.passwords.password
+    //     password: newUser.password
     //   });
     //   let validResponse = await userAPI.userApi.readById(newUser.id);
     //   // Check
@@ -191,7 +191,7 @@ describe('Authentication Service (tenant utall)', function() {
     //   testData.createdUsersAdminTenant.push(newUser);
     //   const userAPI = new CentralServerService(testData.adminTenant, {
     //     email: newUser.email,
-    //     password: newUser.passwords.password
+    //     password: newUser.password
     //   });
     //   let validResponse = await userAPI.userApi.readById(newUser.id);
     //   // Check
@@ -234,17 +234,17 @@ describe('Authentication Service (tenant utall)', function() {
     it('Should not allow registration without password', async () => {
       // Call
       const newUser = UserFactory.buildRegisterUser();
-      delete newUser.passwords;
+      delete newUser.password;
       const response = await CentralServerService.defaultInstance.authenticationApi.registerUser(newUser, testData.adminTenant);
       // Check
       expect(response.status).to.be.eql(StatusCodes.INTERNAL_SERVER_ERROR);
       expect(response.data).to.not.have.property('token');
     });
 
-    it('Should not allow registration with empty strings passwords', async () => {
+    it('Should not allow registration with empty string password', async () => {
       // Call
       const newUser = UserFactory.buildRegisterUser();
-      newUser.passwords = { password: '', repeatPassword: '' };
+      newUser.password = '';
       const response = await CentralServerService.defaultInstance.authenticationApi.registerUser(newUser, testData.adminTenant);
       // Check
       expect(response.status).to.be.eql(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -254,7 +254,7 @@ describe('Authentication Service (tenant utall)', function() {
     it('Should not allow registration with weak password', async () => {
       // Call
       const newUser = UserFactory.buildRegisterUser();
-      newUser.passwords = { password: '1234', repeatPassword: '1234' };
+      newUser.password = '1234';
       const response = await CentralServerService.defaultInstance.authenticationApi.registerUser(newUser, testData.adminTenant);
       // Check
       expect(response.status).to.be.eql(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -266,14 +266,6 @@ describe('Authentication Service (tenant utall)', function() {
       const response = await CentralServerService.defaultInstance.authenticationApi.login(testData.adminEmail, 'A_M4tch1ng_P4ssw0rd', true);
       // Check
       expect(response.status).to.be.eql(HTTPError.OBJECT_DOES_NOT_EXIST_ERROR);
-      expect(response.data).to.not.have.property('token');
-    });
-
-    it('Should not allow authentication with a password that doesn\'t match requirements', async () => {
-      // Call
-      const response = await CentralServerService.defaultInstance.authenticationApi.login(testData.adminEmail, '1234', true);
-      // Check
-      expect(response.status).to.be.eql(StatusCodes.INTERNAL_SERVER_ERROR);
       expect(response.data).to.not.have.property('token');
     });
 

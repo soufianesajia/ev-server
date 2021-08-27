@@ -48,9 +48,9 @@ export default class CPOCdrsEndpoint extends AbstractEndpoint {
 
   private async getAllCdrs(tenant: Tenant, limit: number, skip: number, dateFrom?: Date, dateTo?: Date): Promise<DataResult<OCPICdr>> {
     // Get all transactions
-    const transactions = await TransactionStorage.getTransactions(tenant.id,
+    const transactions = await TransactionStorage.getTransactions(tenant,
       { issuer: true, ocpiCdrDateFrom: dateFrom, ocpiCdrDateTo: dateTo, ocpiCdrChecked: true },
-      { limit, skip }
+      { limit, skip }, ['ocpiData']
     );
     return {
       count: transactions.count,

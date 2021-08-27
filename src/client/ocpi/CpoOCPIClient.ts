@@ -109,7 +109,7 @@ export default class CpoOCPIClient extends OCPIClient {
       for (const token of response.data.data as OCPIToken[]) {
         tagIDs.push(token.uid);
       }
-      const tags = await TagStorage.getTags(this.tenant.id,
+      const tags = await TagStorage.getTags(this.tenant,
         { tagIDs: tagIDs }, Constants.DB_PARAMS_MAX_LIMIT);
       const tokens = response.data.data as OCPIToken[];
       if (!Utils.isEmptyArray(tokens)) {
@@ -121,14 +121,14 @@ export default class CpoOCPIClient extends OCPIClient {
             let emspUser = emspUsers.get(email);
             if (!emspUser) {
               // Get User from DB
-              emspUser = await UserStorage.getUserByEmail(this.tenant.id, email);
+              emspUser = await UserStorage.getUserByEmail(this.tenant, email);
               if (emspUser) {
                 emspUsers.set(email, emspUser);
               }
             }
             // Get the Tag
             const emspTag = tags.result.find((tag) => tag.id === token.uid);
-            await OCPIUtilsService.updateToken(this.tenant.id, this.ocpiEndpoint, token, emspTag, emspUser);
+            await OCPIUtilsService.updateToken(this.tenant, this.ocpiEndpoint, token, emspTag, emspUser);
             result.success++;
           } catch (error) {
             result.failure++;
@@ -187,6 +187,7 @@ export default class CpoOCPIClient extends OCPIClient {
       });
     if (!response.data.data) {
       throw new BackendError({
+        source: chargingStation.id,
         action: ServerAction.OCPI_AUTHORIZE_TOKEN,
         message: 'Invalid response from Post Authorize',
         module: MODULE_NAME, method: 'authorizeToken',
@@ -196,35 +197,38 @@ export default class CpoOCPIClient extends OCPIClient {
     const authorizationInfo = response.data.data as OCPIAuthorizationInfo;
     if (authorizationInfo.allowed !== OCPIAllowed.ALLOWED) {
       throw new BackendError({
+        source: chargingStation.id,
         action: ServerAction.OCPI_AUTHORIZE_TOKEN,
-        message: 'Authorization rejected',
+        message: `OCPI Tag ID '${token.uid}' has been rejected`,
         module: MODULE_NAME, method: 'authorizeToken',
         detailedMessages: { locationReference, authorizationInfo }
       });
     }
     if (!authorizationInfo.authorization_id) {
       throw new BackendError({
+        source: chargingStation.id,
         action: ServerAction.OCPI_AUTHORIZE_TOKEN,
-        message: 'Authorization allowed without \'authorization_id\'',
+        message: `OCPI Tag ID '${token.uid}' has been rejected (no Authorization ID)`,
         module: MODULE_NAME, method: 'authorizeToken',
         detailedMessages: { locationReference, authorizationInfo }
       });
     }
     await Logging.logInfo({
       tenantID: this.tenant.id,
+      siteID: chargingStation.siteID,
       source: chargingStation.id,
       action: ServerAction.OCPI_AUTHORIZE_TOKEN,
-      message: `OCPI Authorization ID '${authorizationInfo.authorization_id}' has been issued successfully`,
+      message: `OCPI Tag ID '${token.uid}' has been authorized successfully`,
       module: MODULE_NAME, method: 'authorizeToken',
       detailedMessages: { locationReference, response: response.data }
     });
     return authorizationInfo.authorization_id;
   }
 
-  public async startSession(ocpiToken: OCPIToken, chargingStation: ChargingStation, transaction: Transaction, authorizationId: string): Promise<void> {
+  public async startSession(ocpiToken: OCPIToken, chargingStation: ChargingStation, transaction: Transaction): Promise<void> {
     // Get tokens endpoint url
     const sessionsUrl = `${this.getEndpointUrl('sessions', ServerAction.OCPI_PUSH_SESSIONS)}/${this.getLocalCountryCode(ServerAction.OCPI_PUSH_SESSIONS)}/${this.getLocalPartyID(ServerAction.OCPI_PUSH_SESSIONS)}/${transaction.id.toString()}`;
-    const site = await SiteStorage.getSite(this.tenant.id, chargingStation.siteID);
+    const site = await SiteStorage.getSite(this.tenant, chargingStation.siteID);
     const ocpiLocation: OCPILocation = this.convertChargingStationToOCPILocation(this.tenant, site, chargingStation,
       transaction.connectorId, this.getLocalCountryCode(ServerAction.OCPI_PUSH_SESSIONS), this.getLocalPartyID(ServerAction.OCPI_PUSH_SESSIONS));
     // Build payload
@@ -237,7 +241,7 @@ export default class CpoOCPIClient extends OCPIClient {
       location: ocpiLocation,
       currency: this.settings.currency,
       status: OCPISessionStatus.PENDING,
-      authorization_id: authorizationId,
+      authorization_id: transaction.authorizationID,
       total_cost: transaction.currentCumulatedPrice > 0 ? transaction.currentCumulatedPrice : 0,
       last_updated: transaction.timestamp
     };
@@ -257,20 +261,21 @@ export default class CpoOCPIClient extends OCPIClient {
     };
     await Logging.logInfo({
       tenantID: this.tenant.id,
+      siteID: chargingStation.siteID,
       source: chargingStation.id,
       action: ServerAction.OCPI_START_SESSION,
-      message: `OCPI Session ID '${ocpiSession.id}' (ID '${transaction.id}') has been started successfully`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction has been started successfully`,
       module: MODULE_NAME, method: 'startSession',
       detailedMessages: { ocpiSession, response: response.data }
     });
   }
 
   public async updateSession(transaction: Transaction): Promise<void> {
-    if (!transaction.ocpiData || !transaction.ocpiData.session) {
+    if (!transaction.ocpiData?.session) {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_PUSH_SESSIONS,
-        message: `OCPI Data not found in Session ID '${transaction.id}'`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Data not found`,
         module: MODULE_NAME, method: 'updateSession',
       });
     }
@@ -282,7 +287,7 @@ export default class CpoOCPIClient extends OCPIClient {
     transaction.ocpiData.session.total_cost = transaction.currentCumulatedPrice > 0 ? transaction.currentCumulatedPrice : 0;
     transaction.ocpiData.session.currency = this.settings.currency;
     transaction.ocpiData.session.status = OCPISessionStatus.ACTIVE;
-    transaction.ocpiData.session.charging_periods = await this.buildChargingPeriods(this.tenant.id, transaction);
+    transaction.ocpiData.session.charging_periods = await this.buildChargingPeriods(this.tenant, transaction);
     // Send OCPI information
     const session: Partial<OCPISession> = {
       kwh: transaction.ocpiData.session.kwh,
@@ -303,28 +308,21 @@ export default class CpoOCPIClient extends OCPIClient {
       });
     await Logging.logInfo({
       tenantID: this.tenant.id,
+      siteID: transaction.siteID,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_PUSH_SESSIONS,
-      message: `OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') patched successfully`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction has been patched successfully`,
       module: MODULE_NAME, method: 'updateSession',
       detailedMessages: { session, response: response.data }
     });
   }
 
   public async stopSession(transaction: Transaction): Promise<void> {
-    if (!transaction.ocpiData) {
+    if (!transaction.ocpiData?.session) {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_STOP_SESSION,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
-        module: MODULE_NAME, method: 'stopSession',
-      });
-    }
-    if (!transaction.ocpiData.session) {
-      throw new BackendError({
-        source: transaction.chargeBoxID,
-        action: ServerAction.OCPI_STOP_SESSION,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction does not exists`,
         module: MODULE_NAME, method: 'stopSession',
       });
     }
@@ -332,7 +330,7 @@ export default class CpoOCPIClient extends OCPIClient {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_STOP_SESSION,
-        message: `OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') not yet stopped`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Transaction has not yet been stopped`,
         module: MODULE_NAME, method: 'stopSession',
       });
     }
@@ -343,7 +341,7 @@ export default class CpoOCPIClient extends OCPIClient {
     transaction.ocpiData.session.end_datetime = transaction.stop.timestamp;
     transaction.ocpiData.session.last_updated = transaction.stop.timestamp;
     transaction.ocpiData.session.status = OCPISessionStatus.COMPLETED;
-    transaction.ocpiData.session.charging_periods = await this.buildChargingPeriods(this.tenant.id, transaction);
+    transaction.ocpiData.session.charging_periods = await this.buildChargingPeriods(this.tenant, transaction);
     // Call IOP
     const response = await this.axiosInstance.put(
       tokensUrl,
@@ -356,28 +354,21 @@ export default class CpoOCPIClient extends OCPIClient {
       });
     await Logging.logInfo({
       tenantID: this.tenant.id,
+      siteID: transaction.siteID,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_STOP_SESSION,
-      message: `OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') has been stopped successfully`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Transaction has been stopped successfully`,
       module: MODULE_NAME, method: 'stopSession',
       detailedMessages: { session: transaction.ocpiData.session, response: response.data }
     });
   }
 
   public async postCdr(transaction: Transaction): Promise<void> {
-    if (!transaction.ocpiData) {
+    if (!transaction.ocpiData?.session) {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_PUSH_CDRS,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
-        module: MODULE_NAME, method: 'postCdr',
-      });
-    }
-    if (!transaction.ocpiData.session) {
-      throw new BackendError({
-        source: transaction.chargeBoxID,
-        action: ServerAction.OCPI_PUSH_CDRS,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Session does not exists`,
         module: MODULE_NAME, method: 'postCdr',
       });
     }
@@ -385,7 +376,7 @@ export default class CpoOCPIClient extends OCPIClient {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_PUSH_CDRS,
-        message: `OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') not stopped`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Transaction has not yet been stopped`,
         module: MODULE_NAME, method: 'postCdr',
       });
     }
@@ -404,7 +395,7 @@ export default class CpoOCPIClient extends OCPIClient {
       auth_method: transaction.ocpiData.session.auth_method,
       location: transaction.ocpiData.session.location,
       total_cost: transaction.stop.roundedPrice > 0 ? transaction.stop.roundedPrice : 0,
-      charging_periods: await this.buildChargingPeriods(this.tenant.id, transaction),
+      charging_periods: await this.buildChargingPeriods(this.tenant, transaction),
       last_updated: transaction.stop.timestamp
     };
     // Call IOP
@@ -419,9 +410,10 @@ export default class CpoOCPIClient extends OCPIClient {
       });
     await Logging.logInfo({
       tenantID: this.tenant.id,
+      siteID: transaction.siteID,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_PUSH_CDRS,
-      message: `Post CDR of OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') has been done successfully`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI CDR has been sent successfully`,
       module: MODULE_NAME, method: 'postCdr',
       detailedMessages: { cdr: transaction.ocpiData.cdr, response: response.data }
     });
@@ -432,7 +424,7 @@ export default class CpoOCPIClient extends OCPIClient {
       throw new BackendError({
         source: chargingStation.id,
         action: ServerAction.OCPI_PATCH_STATUS,
-        message: 'Charging Station must be associated to a site area',
+        message: 'Charging Station must be associated to a Site Area',
         module: MODULE_NAME, method: 'removeChargingStation',
       });
     }
@@ -453,6 +445,7 @@ export default class CpoOCPIClient extends OCPIClient {
     }
     await Logging.logInfo({
       tenantID: this.tenant.id,
+      siteID: chargingStation.siteID,
       source: chargingStation.id,
       action: ServerAction.OCPI_PATCH_STATUS,
       message: 'Charging Station has been removed successfully',
@@ -486,7 +479,8 @@ export default class CpoOCPIClient extends OCPIClient {
         module: MODULE_NAME, method: 'patchChargingStationStatus',
       });
     }
-    await this.patchEVSEStatus(chargingStation.id, chargingStation.siteID, OCPIUtils.buildEvseUID(chargingStation, connector), OCPIUtilsService.convertStatus2OCPIStatus(connector.status));
+    await this.patchEVSEStatus(chargingStation.id, chargingStation.siteID,
+      OCPIUtils.buildEvseUID(chargingStation, connector), OCPIUtilsService.convertStatus2OCPIStatus(connector.status));
   }
 
   public async checkSessions(): Promise<OCPIResult> {
@@ -500,7 +494,7 @@ export default class CpoOCPIClient extends OCPIClient {
     };
     // Perfs trace
     const startTime = new Date().getTime();
-    const transactions = await TransactionStorage.getTransactions(this.tenant.id, {
+    const transactions = await TransactionStorage.getTransactions(this.tenant, {
       issuer: true,
       ocpiSessionChecked: false
     }, Constants.DB_PARAMS_MAX_LIMIT);
@@ -518,7 +512,7 @@ export default class CpoOCPIClient extends OCPIClient {
             result.failure++;
             result.objectIDsInFailure.push(String(transaction.id));
             result.logs.push(
-              `Failed to check OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}'): ${error.message}`
+              `Failed to check OCPI Transaction ID '${transaction.ocpiData.session.id}': ${error.message}`
             );
           }
         }
@@ -529,10 +523,10 @@ export default class CpoOCPIClient extends OCPIClient {
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
     await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_CHECK_SESSIONS,
       MODULE_NAME, 'checkSessions', result,
-      `{{inSuccess}} Session(s) were successfully checked in ${executionDurationSecs}s`,
-      `{{inError}} Session(s) failed to be checked in ${executionDurationSecs}s`,
-      `{{inSuccess}} Session(s) were successfully checked and {{inError}} failed to be checked in ${executionDurationSecs}s`,
-      'No Sessions have been checked'
+      `{{inSuccess}} Transaction(s) were successfully checked in ${executionDurationSecs}s`,
+      `{{inError}} Transaction(s) failed to be checked in ${executionDurationSecs}s`,
+      `{{inSuccess}} Transaction(s) were successfully checked and {{inError}} failed to be checked in ${executionDurationSecs}s`,
+      'No Transaction has to be checked'
     );
     return result;
   }
@@ -570,7 +564,7 @@ export default class CpoOCPIClient extends OCPIClient {
             result.failure++;
             result.objectIDsInFailure.push(String(location.id));
             result.logs.push(
-              `Failed to check Location ID '${location.id}': ${error.message}`
+              `Failed to check the Location '${location.name}' with ID '${location.id}': ${error.message}`
             );
           }
         }
@@ -584,7 +578,7 @@ export default class CpoOCPIClient extends OCPIClient {
       `{{inSuccess}} Location(s) were successfully checked in ${executionDurationSecs}s`,
       `{{inError}} Location(s) failed to be checked in ${executionDurationSecs}s`,
       `{{inSuccess}} Location(s) were successfully checked and {{inError}} failed to be checked in ${executionDurationSecs}s`,
-      'No Locations have been checked'
+      'No Location has to be checked'
     );
     return result;
   }
@@ -600,7 +594,7 @@ export default class CpoOCPIClient extends OCPIClient {
     };
     // Perfs trace
     const startTime = new Date().getTime();
-    const transactions = await TransactionStorage.getTransactions(this.tenant.id, {
+    const transactions = await TransactionStorage.getTransactions(this.tenant, {
       issuer: true,
       ocpiCdrChecked: false
     }, Constants.DB_PARAMS_MAX_LIMIT);
@@ -617,7 +611,7 @@ export default class CpoOCPIClient extends OCPIClient {
           result.failure++;
           result.objectIDsInFailure.push(String(transaction.id));
           result.logs.push(
-            `Failed to check CDR of OCPI Transaction ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}'): ${error.message}`
+            `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Failed to check CDR: ${error.message}`
           );
         }
         result.total++;
@@ -630,7 +624,7 @@ export default class CpoOCPIClient extends OCPIClient {
       `{{inSuccess}} CDR(s) were successfully checked in ${executionDurationSecs}s`,
       `{{inError}} CDR(s) failed to be checked in ${executionDurationSecs}s`,
       `{{inSuccess}} CDR(s) were successfully checked and {{inError}} failed to be checked in ${executionDurationSecs}s`,
-      'No CDR to be checked'
+      'No CDR has to be checked'
     );
     return result;
   }
@@ -696,14 +690,14 @@ export default class CpoOCPIClient extends OCPIClient {
                   result.failure++;
                   result.objectIDsInFailure.push(evse.chargeBoxId);
                   result.logs.push(
-                    `Update status failed on Location ID '${location.id}', Charging Station ID '${evse.evse_id}': ${error.message}`
+                    `Update status failed on Location '${location.name}' with ID '${location.id}', Charging Station ID '${evse.evse_id}': ${error.message}`
                   );
                 }
                 if (result.failure > 0) {
                   // Send notification to admins
                   // eslint-disable-next-line @typescript-eslint/no-floating-promises
                   NotificationHandler.sendOCPIPatchChargingStationsStatusesError(
-                    this.tenant.id,
+                    this.tenant,
                     {
                       location: location.name,
                       evseDashboardURL: Utils.buildEvseURL(this.tenant.subdomain),
@@ -728,7 +722,7 @@ export default class CpoOCPIClient extends OCPIClient {
         failureNbr: result.failure,
         totalNbr: result.total,
         chargeBoxIDsInFailure: _.uniq(result.objectIDsInFailure),
-        chargeBoxIDsInSuccess: _.uniq(result.objectIDsInFailure)
+        chargeBoxIDsInSuccess: []
       };
     } else {
       this.ocpiEndpoint.lastPatchJobResult = {
@@ -741,7 +735,7 @@ export default class CpoOCPIClient extends OCPIClient {
     }
     // Save
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
-    await OCPIEndpointStorage.saveOcpiEndpoint(this.tenant.id, this.ocpiEndpoint);
+    await OCPIEndpointStorage.saveOcpiEndpoint(this.tenant, this.ocpiEndpoint);
     await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PATCH_STATUS,
       MODULE_NAME, 'sendEVSEStatuses', result,
       `{{inSuccess}} EVSE Status(es) were successfully patched in ${executionDurationSecs}s`,
@@ -815,24 +809,19 @@ export default class CpoOCPIClient extends OCPIClient {
   }
 
   private async checkCdr(transaction: Transaction): Promise<boolean> {
-    if (!transaction.ocpiData) {
+    if (!transaction.ocpiData?.cdr) {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_CHECK_CDRS,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI CDR does not exists`,
         module: MODULE_NAME, method: 'checkCdr',
       });
     }
-    if (!transaction.ocpiData.cdr) {
-      throw new BackendError({
-        source: transaction.chargeBoxID,
-        action: ServerAction.OCPI_CHECK_CDRS,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
-        module: MODULE_NAME, method: 'checkCdr',
-      });
-    }
-    const cdrsUrl = this.getEndpointUrl('cdrs', ServerAction.OCPI_CHECK_CDRS);
+    // Mark it as done (checked at least once)
+    transaction.ocpiData.cdrCheckedOn = new Date();
+    await TransactionStorage.saveTransactionOcpiData(this.tenant, transaction.id, transaction.ocpiData);
     // Check CDR
+    const cdrsUrl = this.getEndpointUrl('cdrs', ServerAction.OCPI_CHECK_CDRS);
     const response = await this.axiosInstance.get(
       `${cdrsUrl}/${transaction.ocpiData.cdr.id}`,
       {
@@ -844,9 +833,10 @@ export default class CpoOCPIClient extends OCPIClient {
     if (response.data.status_code === 3001) {
       await Logging.logError({
         tenantID: this.tenant.id,
+        siteID: transaction.siteID,
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_CHECK_CDRS,
-        message: `CDR of OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') does not exist`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} CDR does not exist in IOP`,
         module: MODULE_NAME, method: 'checkCdr',
         detailedMessages: { response: response.data }
       });
@@ -863,13 +853,13 @@ export default class CpoOCPIClient extends OCPIClient {
     } else if (OCPIUtilsService.isSuccessResponse(response.data)) {
       const cdr = response.data.data as OCPICdr;
       if (cdr) {
-        transaction.ocpiData.cdrCheckedOn = new Date();
-        await TransactionStorage.saveTransaction(this.tenant.id, transaction);
+        // CDR checked
         await Logging.logInfo({
           tenantID: this.tenant.id,
+          siteID: transaction.siteID,
           source: transaction.chargeBoxID,
           action: ServerAction.OCPI_CHECK_CDRS,
-          message: `CDR of OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') checked successfully`,
+          message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} CDR has been checked successfully`,
           module: MODULE_NAME, method: 'checkCdr',
           detailedMessages: { cdr }
         });
@@ -878,9 +868,10 @@ export default class CpoOCPIClient extends OCPIClient {
     }
     await Logging.logError({
       tenantID: this.tenant.id,
+      siteID: transaction.siteID,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_CHECK_CDRS,
-      message: `Failed to check CDR of OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') at ${cdrsUrl}/${transaction.ocpiData.cdr.id}`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Failed to check CDR '${transaction.ocpiData.session.id}' at ${cdrsUrl}/${transaction.ocpiData.cdr.id}`,
       module: MODULE_NAME, method: 'checkCdr',
       detailedMessages: { response: response.data, cdr: transaction.ocpiData.cdr }
     });
@@ -888,24 +879,19 @@ export default class CpoOCPIClient extends OCPIClient {
   }
 
   private async checkSession(transaction: Transaction): Promise<boolean> {
-    if (!transaction.ocpiData) {
+    if (!transaction.ocpiData?.session) {
       throw new BackendError({
         source: transaction.chargeBoxID,
         action: ServerAction.OCPI_CHECK_SESSIONS,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Session does not exists`,
         module: MODULE_NAME, method: 'checkSession',
       });
     }
-    if (!transaction.ocpiData.session) {
-      throw new BackendError({
-        source: transaction.chargeBoxID,
-        action: ServerAction.OCPI_CHECK_SESSIONS,
-        message: `OCPI Data does not exists on Session ID '${transaction.id}'`,
-        module: MODULE_NAME, method: 'checkSession',
-      });
-    }
+    // Mark it as done (checked at least once)
+    transaction.ocpiData.sessionCheckedOn = new Date();
+    await TransactionStorage.saveTransactionOcpiData(this.tenant, transaction.id, transaction.ocpiData);
+    // Check Session
     const sessionsUrl = `${this.getEndpointUrl('sessions', ServerAction.OCPI_CHECK_SESSIONS)}/${this.getLocalCountryCode(ServerAction.OCPI_CHECK_SESSIONS)}/${this.getLocalPartyID(ServerAction.OCPI_CHECK_SESSIONS)}/${transaction.ocpiData.session.id}`;
-    // Check
     const response = await this.axiosInstance.get(
       sessionsUrl,
       {
@@ -918,22 +904,22 @@ export default class CpoOCPIClient extends OCPIClient {
       if (session) {
         await Logging.logInfo({
           tenantID: this.tenant.id,
+          siteID: transaction.siteID,
           source: transaction.chargeBoxID,
           action: ServerAction.OCPI_CHECK_SESSIONS,
-          message: `OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') checked successfully`,
+          message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Transaction has been checked successfully`,
           module: MODULE_NAME, method: 'checkSession',
           detailedMessages: { response: response.data, transaction }
         });
-        transaction.ocpiData.sessionCheckedOn = new Date();
-        await TransactionStorage.saveTransaction(this.tenant.id, transaction);
         return true;
       }
     }
     await Logging.logError({
       tenantID: this.tenant.id,
+      siteID: transaction.siteID,
       source: transaction.chargeBoxID,
       action: ServerAction.OCPI_CHECK_SESSIONS,
-      message: `Failed to check OCPI Session ID '${transaction.ocpiData.session.id}' (ID '${transaction.id}') at ${sessionsUrl}`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Failed to check Transaction at ${sessionsUrl}`,
       module: MODULE_NAME, method: 'checkSession',
       detailedMessages: { response: response.data, transaction }
     });
@@ -969,7 +955,7 @@ export default class CpoOCPIClient extends OCPIClient {
     if (!result) {
       throw new BackendError({
         action: ServerAction.OCPI_CHECK_LOCATIONS,
-        message: `Failed to check Location ID '${location.id}'`,
+        message: `Failed to check Location '${location.name}' with ID '${location.id}'`,
         module: MODULE_NAME, method: 'checkLocation',
         detailedMessages: { location, ocpiLocation }
       });
@@ -977,20 +963,20 @@ export default class CpoOCPIClient extends OCPIClient {
     await Logging.logInfo({
       tenantID: this.tenant.id,
       action: ServerAction.OCPI_CHECK_LOCATIONS,
-      message: `Location ID '${location.id}' checked successfully`,
+      message: `Location '${location.name}' with ID '${location.id}' checked successfully`,
       module: MODULE_NAME, method: 'checkLocation',
       detailedMessages: { location, ocpiLocation }
     });
     return result;
   }
 
-  private async buildChargingPeriods(tenantID: string, transaction: Transaction): Promise<OCPIChargingPeriod[]> {
+  private async buildChargingPeriods(tenant: Tenant, transaction: Transaction): Promise<OCPIChargingPeriod[]> {
     if (!transaction || !transaction.timestamp) {
       return [];
     }
     const chargingPeriods: OCPIChargingPeriod[] = [];
     const consumptions = await ConsumptionStorage.getTransactionConsumptions(
-      tenantID, { transactionId: transaction.id });
+      tenant, { transactionId: transaction.id });
     if (consumptions.result) {
       // Build based on consumptions
       for (const consumption of consumptions.result) {
@@ -1028,12 +1014,12 @@ export default class CpoOCPIClient extends OCPIClient {
       connectorId: number, countryId: string, partyId: string): OCPILocation {
     const connectors: OCPIConnector[] = [];
     let status: ChargePointStatus;
-    for (const chargingStationConnector of chargingStation.connectors) {
-      if (chargingStationConnector.connectorId === connectorId) {
-        connectors.push(OCPIUtilsService.convertConnector2OCPIConnector(tenant, chargingStation, chargingStationConnector, countryId, partyId));
-        status = chargingStationConnector.status;
-        break;
-      }
+    const connector = Utils.getConnectorFromID(chargingStation, connectorId);
+    let chargePoint;
+    if (connector) {
+      connectors.push(OCPIUtilsService.convertConnector2OCPIConnector(tenant, chargingStation, connector, countryId, partyId));
+      status = connector.status;
+      chargePoint = Utils.getChargePointFromID(chargingStation, connector.chargePointID);
     }
     const ocpiLocation: OCPILocation = {
       id: site.id,
@@ -1049,8 +1035,7 @@ export default class CpoOCPIClient extends OCPIClient {
       type: OCPILocationType.UNKNOWN,
       evses: [{
         uid: OCPIUtils.buildEvseUID(chargingStation, Utils.getConnectorFromID(chargingStation, connectorId)),
-        evse_id: RoamingUtils.buildEvseID(countryId, partyId, chargingStation.id,
-          Utils.getConnectorFromID(chargingStation, connectorId).connectorId),
+        evse_id: RoamingUtils.buildEvseID(countryId, partyId, chargingStation.id, chargePoint && chargePoint.cannotChargeInParallel ? chargePoint.chargePointID : connectorId),
         location_id: chargingStation.siteID,
         status: OCPIUtilsService.convertStatus2OCPIStatus(status),
         capabilities: [OCPICapability.REMOTE_START_STOP_CAPABLE, OCPICapability.RFID_READER],

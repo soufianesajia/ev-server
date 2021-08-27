@@ -9,14 +9,18 @@ import AssetFactory from '../../../../integration/asset/AssetFactory';
 import { AssetInErrorType } from '../../../../types/InError';
 import AssetSecurity from './security/AssetSecurity';
 import AssetStorage from '../../../../storage/mongodb/AssetStorage';
+import AssetValidator from '../validator/AssetValidator';
 import AuthorizationService from './AuthorizationService';
 import Authorizations from '../../../../authorization/Authorizations';
 import Constants from '../../../../utils/Constants';
+import Consumption from '../../../../types/Consumption';
 import ConsumptionStorage from '../../../../storage/mongodb/ConsumptionStorage';
 import Logging from '../../../../utils/Logging';
+import OCPPUtils from '../../../../server/ocpp/utils/OCPPUtils';
 import { ServerAction } from '../../../../types/Server';
 import SiteArea from '../../../../types/SiteArea';
 import SiteAreaStorage from '../../../../storage/mongodb/SiteAreaStorage';
+import { StatusCodes } from 'http-status-codes';
 import TenantComponents from '../../../../types/TenantComponents';
 import Utils from '../../../../utils/Utils';
 import UtilsService from './UtilsService';
@@ -45,7 +49,7 @@ export default class AssetService {
       });
     }
     // Get it
-    const asset = await AssetStorage.getAsset(req.user.tenantID, filteredRequest.AssetID, {},
+    const asset = await AssetStorage.getAsset(req.tenant, filteredRequest.AssetID, {},
       [ 'id', 'name' ]
     );
     UtilsService.assertObjectExists(action, asset, `Asset ID '${filteredRequest.AssetID}' does not exist`,
@@ -74,7 +78,7 @@ export default class AssetService {
       });
     }
     // Get the ConsumptionValues
-    const consumptions = await ConsumptionStorage.getAssetConsumptions(req.user.tenantID, {
+    const consumptions = await ConsumptionStorage.getAssetConsumptions(req.tenant, {
       assetID: filteredRequest.AssetID,
       startDate: filteredRequest.StartDate,
       endDate: filteredRequest.EndDate
@@ -86,6 +90,108 @@ export default class AssetService {
     next();
   }
 
+  public static async handleCreateAssetConsumption(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
+    // Check if component is active
+    UtilsService.assertComponentIsActiveFromToken(req.user, TenantComponents.ASSET,
+      Action.CREATE_CONSUMPTION, Entity.ASSETS, MODULE_NAME, 'handleCreateAssetConsumption');
+    // Validate request
+    const filteredRequest = AssetValidator.getInstance().validateCreateAssetConsumption({ ...req.params, ...req.body });
+    UtilsService.assertIdIsProvided(action, filteredRequest.assetID, MODULE_NAME,
+      'handleCreateAssetConsumption', req.user);
+    // Check auth
+    if (!await Authorizations.canCreateAssetConsumption(req.user)) {
+      throw new AppAuthError({
+        errorCode: HTTPAuthError.FORBIDDEN,
+        user: req.user,
+        action: Action.CREATE_CONSUMPTION, entity: Entity.ASSET,
+        module: MODULE_NAME, method: 'handleCreateAssetConsumption',
+        value: filteredRequest.assetID
+      });
+    }
+    // Get Asset
+    const asset = await AssetStorage.getAsset(req.tenant, filteredRequest.assetID, { withSiteArea: true });
+    UtilsService.assertObjectExists(action, asset, `Asset ID '${filteredRequest.assetID}' does not exist`,
+      MODULE_NAME, 'handleCreateAssetConsumption', req.user);
+    // Check if connection ID exists
+    if (!Utils.isNullOrUndefined(asset.connectionID)) {
+      throw new AppError({
+        source: Constants.CENTRAL_SERVER,
+        errorCode: HTTPError.GENERAL_ERROR,
+        message: `The asset '${asset.name}' has a defined connection. The push API can not be used`,
+        module: MODULE_NAME, method: 'handleCreateAssetConsumption',
+        user: req.user,
+        action: action
+      });
+    }
+    // Check dates order
+    if (filteredRequest.startedAt && filteredRequest.endedAt &&
+        !moment(filteredRequest.endedAt).isAfter(moment(filteredRequest.startedAt))) {
+      throw new AppError({
+        source: Constants.CENTRAL_SERVER,
+        errorCode: HTTPError.GENERAL_ERROR,
+        message: `The requested start date '${moment(filteredRequest.startedAt).toISOString()}' is after the end date '${moment(filteredRequest.endedAt).toISOString()}' `,
+        module: MODULE_NAME, method: 'handleCreateAssetConsumption',
+        user: req.user,
+        action: action
+      });
+    }
+    // Get latest consumption and check dates
+    const lastConsumption = await ConsumptionStorage.getLastAssetConsumption(req.tenant, { assetID: filteredRequest.assetID });
+    if (!Utils.isNullOrUndefined(lastConsumption)) {
+      if (moment(filteredRequest.startedAt).isBefore(moment(lastConsumption.endedAt))) {
+        throw new AppError({
+          source: Constants.CENTRAL_SERVER,
+          errorCode: HTTPError.GENERAL_ERROR,
+          message: `The start date '${moment(filteredRequest.startedAt).toISOString()}' of the pushed consumption is before the end date '${moment(lastConsumption.endedAt).toISOString()}' of the latest asset consumption`,
+          module: MODULE_NAME, method: 'handleCreateAssetConsumption',
+          user: req.user,
+          action: action
+        });
+      }
+    }
+    // Add site area
+    const consumptionToSave: Consumption = {
+      ...filteredRequest,
+      siteAreaID: asset.siteAreaID,
+      siteID: asset.siteArea.siteID,
+    };
+    // Check consumption
+    if (Utils.isNullOrUndefined(consumptionToSave.consumptionWh)) {
+      const timePeriod = moment(consumptionToSave.endedAt).diff(moment(consumptionToSave.startedAt), 'minutes');
+      consumptionToSave.consumptionWh = Utils.createDecimal(consumptionToSave.instantWatts).mul(Utils.createDecimal(timePeriod).div(60)).toNumber();
+    }
+    // Add Amps
+    if (Utils.isNullOrUndefined(consumptionToSave.instantAmps)) {
+      consumptionToSave.instantAmps = Utils.createDecimal(consumptionToSave.instantWatts).div(asset.siteArea.voltage).toNumber();
+    }
+    // Add site limitation
+    await OCPPUtils.addSiteLimitationToConsumption(req.tenant, asset.siteArea, consumptionToSave);
+    // Save consumption
+    await ConsumptionStorage.saveConsumption(req.tenant, consumptionToSave);
+    // Assign to asset
+    asset.currentConsumptionWh = filteredRequest.consumptionWh;
+    asset.currentInstantAmps = filteredRequest.instantAmps;
+    asset.currentInstantAmpsL1 = filteredRequest.instantAmpsL1;
+    asset.currentInstantAmpsL2 = filteredRequest.instantAmpsL2;
+    asset.currentInstantAmpsL3 = filteredRequest.instantAmpsL3;
+    asset.currentInstantVolts = filteredRequest.instantVolts;
+    asset.currentInstantVoltsL1 = filteredRequest.instantVoltsL1;
+    asset.currentInstantVoltsL2 = filteredRequest.instantVoltsL2;
+    asset.currentInstantVoltsL3 = filteredRequest.instantVoltsL3;
+    asset.currentInstantWatts = filteredRequest.instantWatts;
+    asset.currentInstantWattsL1 = filteredRequest.instantWattsL1;
+    asset.currentInstantWattsL2 = filteredRequest.instantWattsL2;
+    asset.currentInstantWattsL3 = filteredRequest.instantWattsL3;
+    asset.currentStateOfCharge = filteredRequest.stateOfCharge;
+    asset.lastConsumption = { timestamp: consumptionToSave.endedAt, value: consumptionToSave.consumptionWh };
+    // Save Asset
+    await AssetStorage.saveAsset(req.tenant, asset);
+    // Create response
+    res.status(StatusCodes.CREATED).json(Object.assign({ consumption: consumptionToSave }, Constants.REST_RESPONSE_SUCCESS));
+    next();
+  }
+
+
   public static async handleCheckAssetConnection(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Check if component is active
     UtilsService.assertComponentIsActiveFromToken(req.user, TenantComponents.ASSET,
@@ -93,7 +199,7 @@ export default class AssetService {
     // Filter request
     const filteredRequest = AssetSecurity.filterAssetRequestByID(req.query);
     // Get asset connection type
-    const assetImpl = await AssetFactory.getAssetImpl(req.user.tenantID, filteredRequest);
+    const assetImpl = await AssetFactory.getAssetImpl(req.tenant, filteredRequest);
     // Asset has unknown connection type
     if (!assetImpl) {
       throw new AppError({
@@ -127,7 +233,7 @@ export default class AssetService {
         module: MODULE_NAME, method: 'handleCheckAssetConnection',
         message: 'Asset connection failed',
         action: action,
-        detailedMessages: { error: error.message, stack: error.stack }
+        detailedMessages: { error: error.stack }
       });
       // Create fail response
       res.json(Object.assign({ connectionIsValid: false }, Constants.REST_RESPONSE_SUCCESS));
@@ -152,7 +258,7 @@ export default class AssetService {
     const assetID = AssetSecurity.filterAssetRequestByID(req.query);
     UtilsService.assertIdIsProvided(action, assetID, MODULE_NAME, 'handleRetrieveConsumption', req.user);
     // Get
-    const asset = await AssetStorage.getAsset(req.user.tenantID, assetID);
+    const asset = await AssetStorage.getAsset(req.tenant, assetID);
     UtilsService.assertObjectExists(action, asset, `Asset ID '${assetID}' does not exist`,
       MODULE_NAME, 'handleRetrieveConsumption', req.user);
     // Dynamic asset ?
@@ -167,8 +273,20 @@ export default class AssetService {
         detailedMessages: { asset }
       });
     }
+    // Uses Push API
+    if (asset.usesPushAPI) {
+      throw new AppError({
+        source: Constants.CENTRAL_SERVER,
+        errorCode: HTTPError.GENERAL_ERROR,
+        module: MODULE_NAME, method: 'handleRetrieveConsumption',
+        action: action,
+        user: req.user,
+        message: 'This Asset is using the push API, no consumption can be retrieved',
+        detailedMessages: { asset }
+      });
+    }
     // Get asset factory
-    const assetImpl = await AssetFactory.getAssetImpl(req.user.tenantID, asset.connectionID);
+    const assetImpl = await AssetFactory.getAssetImpl(req.tenant, asset.connectionID);
     if (!assetImpl) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -200,7 +318,7 @@ export default class AssetService {
         asset.currentInstantWattsL3 = consumption.currentInstantWattsL3;
         asset.currentStateOfCharge = consumption.currentStateOfCharge;
         // Save Asset
-        await AssetStorage.saveAsset(req.user.tenantID, asset);
+        await AssetStorage.saveAsset(req.tenant, asset);
       }
     } else {
       // TODO: Return a specific HTTP code to tell the user that the consumption cannot be retrieved
@@ -228,8 +346,9 @@ export default class AssetService {
     // Build error type
     const errorType = (filteredRequest.ErrorType ? filteredRequest.ErrorType.split('|') : [AssetInErrorType.MISSING_SITE_AREA]);
     // Get the assets
-    const assets = await AssetStorage.getAssetsInError(req.user.tenantID,
+    const assets = await AssetStorage.getAssetsInError(req.tenant,
       {
+        issuer: filteredRequest.Issuer,
         search: filteredRequest.Search,
         siteAreaIDs: (filteredRequest.SiteAreaID ? filteredRequest.SiteAreaID.split('|') : null),
         siteIDs: (filteredRequest.SiteID ? filteredRequest.SiteID.split('|') : null),
@@ -265,7 +384,7 @@ export default class AssetService {
       });
     }
     // Get
-    const asset = await AssetStorage.getAsset(req.user.tenantID, filteredRequest.ID,
+    const asset = await AssetStorage.getAsset(req.tenant, filteredRequest.ID,
       { withSiteArea: filteredRequest.WithSiteArea });
     // Found?
     UtilsService.assertObjectExists(action, asset, `Asset ID '${filteredRequest.ID}' does not exist`,
@@ -281,7 +400,7 @@ export default class AssetService {
       });
     }
     // Delete
-    await AssetStorage.deleteAsset(req.user.tenantID, asset.id);
+    await AssetStorage.deleteAsset(req.tenant, asset.id);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
@@ -315,7 +434,7 @@ export default class AssetService {
       });
     }
     // Get it
-    const asset = await AssetStorage.getAsset(req.user.tenantID, filteredRequest.ID,
+    const asset = await AssetStorage.getAsset(req.tenant, filteredRequest.ID,
       { withSiteArea: filteredRequest.WithSiteArea });
     UtilsService.assertObjectExists(action, asset, `Asset ID '${filteredRequest.ID}' does not exist`,
       MODULE_NAME, 'handleGetAsset', req.user);
@@ -328,7 +447,7 @@ export default class AssetService {
     const filteredRequest = AssetSecurity.filterAssetImageRequest(req.query);
     UtilsService.assertIdIsProvided(action, filteredRequest.ID, MODULE_NAME, 'handleGetAssetImage', req.user);
     // Get it
-    const assetImage = await AssetStorage.getAssetImage(filteredRequest.TenantID, filteredRequest.ID);
+    const assetImage = await AssetStorage.getAssetImage(req.tenant, filteredRequest.ID);
     // Return
     if (assetImage?.image) {
       let header = 'image';
@@ -363,16 +482,17 @@ export default class AssetService {
     // Filter
     const filteredRequest = AssetSecurity.filterAssetsRequest(req.query);
     // Get authorization filters
-    const authorizationAssetsFilters = await AuthorizationService.checkAndGetAssetsAuthorizationFilters(
+    const authorizationAssetsFilters = await AuthorizationService.checkAndGetAssetsAuthorizations(
       req.tenant, req.user, filteredRequest);
     if (!authorizationAssetsFilters.authorized) {
       UtilsService.sendEmptyDataResult(res, next);
       return;
     }
     // Get the assets
-    const assets = await AssetStorage.getAssets(req.user.tenantID,
+    const assets = await AssetStorage.getAssets(req.tenant,
       {
         search: filteredRequest.Search,
+        issuer: filteredRequest.Issuer,
         siteAreaIDs: (filteredRequest.SiteAreaID ? filteredRequest.SiteAreaID.split('|') : null),
         siteIDs: (filteredRequest.SiteID ? filteredRequest.SiteID.split('|') : null),
         withSiteArea: filteredRequest.WithSiteArea,
@@ -407,7 +527,7 @@ export default class AssetService {
     // Check Site Area
     let siteArea: SiteArea = null;
     if (filteredRequest.siteAreaID) {
-      siteArea = await SiteAreaStorage.getSiteArea(req.user.tenantID, filteredRequest.siteAreaID);
+      siteArea = await SiteAreaStorage.getSiteArea(req.tenant, filteredRequest.siteAreaID);
       UtilsService.assertObjectExists(action, siteArea, `Site Area ID '${filteredRequest.siteAreaID}' does not exist`,
         MODULE_NAME, 'handleCreateAsset', req.user);
     }
@@ -424,13 +544,14 @@ export default class AssetService {
       coordinates: filteredRequest.coordinates,
       image: filteredRequest.image,
       dynamicAsset: filteredRequest.dynamicAsset,
+      usesPushAPI: filteredRequest.usesPushAPI,
       connectionID: filteredRequest.connectionID,
       meterID: filteredRequest.meterID,
       createdBy: { id: req.user.id },
       createdOn: new Date()
     } as Asset;
     // Save
-    newAsset.id = await AssetStorage.saveAsset(req.user.tenantID, newAsset);
+    newAsset.id = await AssetStorage.saveAsset(req.tenant, newAsset);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,
@@ -464,12 +585,12 @@ export default class AssetService {
     // Check Site Area
     let siteArea: SiteArea = null;
     if (filteredRequest.siteAreaID) {
-      siteArea = await SiteAreaStorage.getSiteArea(req.user.tenantID, filteredRequest.siteAreaID);
+      siteArea = await SiteAreaStorage.getSiteArea(req.tenant, filteredRequest.siteAreaID);
       UtilsService.assertObjectExists(action, siteArea, `Site Area ID '${filteredRequest.siteAreaID}' does not exist`,
         MODULE_NAME, 'handleUpdateAsset', req.user);
     }
     // Check email
-    const asset = await AssetStorage.getAsset(req.user.tenantID, filteredRequest.id);
+    const asset = await AssetStorage.getAsset(req.tenant, filteredRequest.id);
     // Check
     UtilsService.assertObjectExists(action, asset, `Site Area ID '${filteredRequest.id}' does not exist`,
       MODULE_NAME, 'handleUpdateAsset', req.user);
@@ -491,17 +612,19 @@ export default class AssetService {
     asset.siteID = siteArea ? siteArea.siteID : null,
     asset.assetType = filteredRequest.assetType;
     asset.excludeFromSmartCharging = filteredRequest.excludeFromSmartCharging;
+    asset.variationThresholdPercent = filteredRequest.variationThresholdPercent;
     asset.fluctuationPercent = filteredRequest.fluctuationPercent;
     asset.staticValueWatt = filteredRequest.staticValueWatt;
     asset.coordinates = filteredRequest.coordinates;
     asset.image = filteredRequest.image;
     asset.dynamicAsset = filteredRequest.dynamicAsset;
+    asset.usesPushAPI = filteredRequest.usesPushAPI;
     asset.connectionID = filteredRequest.connectionID;
     asset.meterID = filteredRequest.meterID;
     asset.lastChangedBy = { 'id': req.user.id };
     asset.lastChangedOn = new Date();
     // Update Asset
-    await AssetStorage.saveAsset(req.user.tenantID, asset);
+    await AssetStorage.saveAsset(req.tenant, asset);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,

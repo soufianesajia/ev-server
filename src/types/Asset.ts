@@ -16,10 +16,13 @@ export default interface Asset extends CreatedUpdatedProps, AbstractCurrentConsu
   issuer: boolean;
   image?: string;
   dynamicAsset: boolean;
+  usesPushAPI:boolean;
   connectionID?: string;
   meterID?: string;
   values: Consumption[],
   excludeFromSmartCharging?: boolean,
+  variationThresholdPercent?: number,
+  powerWattsLastSmartChargingRun?: number
 }
 
 export interface WitDataSet {
@@ -68,4 +71,28 @@ export enum IothinkProperty {
   IO_ENERGY_CHARGE = 'io-energy-charge',
   IO_ENERGY_DISCHARGE = 'io-energy-discharge',
   IO_SOC = 'io-soc',
+}
+
+export interface LacroixResponse {
+  userID: string;
+  subscriptionRef: string
+  period: string;
+  groupBy: string;
+  data: LacroixDataPoint[]
+}
+
+export interface LacroixDataPoint {
+  date: string;
+  powerApparentConsumedTotal:	number;
+  powerApparentReference:	number;
+  powerApparentConsumed1:	number;
+  powerApparentConsumed2:	number;
+  powerApparentConsumed3: number;
+}
+
+export enum LacroixPeriods {
+  LAST = 'last',
+  FIVE_MINUTES = '5m',
+  ONE_HOUR = '1h',
+  ONE_DAY = 'day',
 }

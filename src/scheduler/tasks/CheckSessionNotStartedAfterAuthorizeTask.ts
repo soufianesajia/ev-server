@@ -17,13 +17,13 @@ export default class CheckSessionNotStartedAfterAuthorizeTask extends SchedulerT
     if (await LockingManager.acquire(sessionNotStartedLock)) {
       try {
         // Get notification
-        const notificationTransactionNotStarted = await TransactionStorage.getNotStartedTransactions(tenant.id, {
+        const notificationTransactionNotStarted = await TransactionStorage.getNotStartedTransactions(tenant, {
           'checkPastAuthorizeMins': config.checkPastAuthorizeMins,
           'sessionShouldBeStartedAfterMins': config.sessionShouldBeStartedAfterMins
         });
         if (notificationTransactionNotStarted.result && notificationTransactionNotStarted.result.length > 0) {
           for (const notification of notificationTransactionNotStarted.result) {
-            await NotificationHandler.sendSessionNotStarted(tenant.id, notification.tagID + '-' + notification.authDate.toString(), notification.chargingStation, {
+            await NotificationHandler.sendSessionNotStarted(tenant, notification.tagID + '-' + notification.authDate.toString(), notification.chargingStation, {
               user: notification.user,
               chargeBoxID: notification.chargingStation.id,
               evseDashboardChargingStationURL: Utils.buildEvseChargingStationURL(tenant.subdomain, notification.chargingStation, '#all'),

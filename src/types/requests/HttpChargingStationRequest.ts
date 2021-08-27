@@ -40,10 +40,14 @@ export interface HttpChargingStationsRequest extends HttpDatabaseRequest {
   ConnectorType?: string;
   ChargingStationID?: string;
   SiteID?: string;
+  CompanyID?: string;
   WithSite?: boolean;
+  WithSiteArea?: boolean;
   SiteAreaID?: string;
   IncludeDeleted?: boolean;
   ErrorType?: string;
+  LocLongitude?: number;
+  LocLatitude?: number;
   LocCoordinates?: number[];
   LocMaxDistanceMeters?: number;
 }
@@ -79,7 +83,9 @@ export interface HttpChargingStationParamsUpdateRequest {
   }[];
 }
 
-export type HttpChargingStationRequest = HttpByIDRequest;
+export interface HttpChargingStationRequest extends HttpByIDRequest {
+  ID: string;
+}
 
 export interface HttpChargingStationOcppRequest {
   ChargingStationID: string;
@@ -103,6 +109,7 @@ export interface HttpChargingStationSetMaxIntensitySocketRequest extends HttpCha
 export interface HttpChargingStationCommandRequest {
   chargingStationID: string;
   carID?: string;
+  userID?: string;
   args?: any;
 }
 

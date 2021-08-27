@@ -2,9 +2,7 @@ import { OCPPErrorType, OCPPIncomingRequest, OCPPMessageType, OCPPRequest } from
 import WebSocket, { CLOSED, CLOSING, CONNECTING, CloseEvent, ErrorEvent, MessageEvent, OPEN } from 'ws';
 
 import BackendError from '../../../exception/BackendError';
-import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import { Command } from '../../../types/ChargingStation';
-import Configuration from '../../../utils/Configuration';
 import Constants from '../../../utils/Constants';
 import DatabaseUtils from '../../../storage/mongodb/DatabaseUtils';
 import JsonCentralSystemServer from './JsonCentralSystemServer';
@@ -12,6 +10,7 @@ import Logging from '../../../utils/Logging';
 import OCPPError from '../../../exception/OcppError';
 import { OCPPVersion } from '../../../types/ocpp/OCPPServer';
 import { ServerAction } from '../../../types/Server';
+import Tenant from '../../../types/Tenant';
 import TenantStorage from '../../../storage/mongodb/TenantStorage';
 import Utils from '../../../utils/Utils';
 import http from 'http';
@@ -21,15 +20,14 @@ const MODULE_NAME = 'WSConnection';
 export default abstract class WSConnection {
   protected initialized: boolean;
   protected wsServer: JsonCentralSystemServer;
-  private readonly uuid: string;
-  private readonly chargingStationID: string;
-  private readonly tenantID: string;
-  private readonly token: string;
-  private readonly url: string;
-  private readonly clientIP: string | string[];
-  private readonly wsConnection: WebSocket;
+  private chargingStationID: string;
+  private tenantID: string;
+  private tenant: Tenant;
+  private token: string;
+  private url: string;
+  private clientIP: string | string[];
+  private wsConnection: WebSocket;
   private requests: { [id: string]: OCPPRequest };
-  private validTenant: boolean;
 
   constructor(wsConnection: WebSocket, req: http.IncomingMessage, wsServer: JsonCentralSystemServer) {
     // Init
@@ -38,14 +36,13 @@ export default abstract class WSConnection {
     this.wsConnection = wsConnection;
     this.initialized = false;
     this.wsServer = wsServer;
-    Logging.logDebug({
+    void Logging.logDebug({
       tenantID: Constants.DEFAULT_TENANT,
       action: ServerAction.WS_CONNECTION_OPENED,
       module: MODULE_NAME, method: 'constructor',
       message: `WS connection opening attempts with URL: '${req.url}'`,
     });
     // Default
-    this.validTenant = false;
     this.requests = {};
     // Check URL: remove starting and trailing '/'
     if (this.url.endsWith('/')) {
@@ -76,9 +73,8 @@ export default abstract class WSConnection {
         message: `The URL '${req.url}' is invalid (/(OCPPxx|REST)/TENANT_ID/CHARGEBOX_ID)`
       });
     }
-    this.uuid = Utils.generateUUID();
     let logMsg = `Unknown type WS connection attempts with URL: '${req.url}'`;
-    let action: ServerAction = ServerAction.WS_CONNECTION_OPENED;
+    let action = ServerAction.WS_CONNECTION_OPENED;
     if (req.url.startsWith('/REST')) {
       logMsg = `REST service connection attempts to Charging Station with URL: '${req.url}'`;
       action = ServerAction.WS_REST_CONNECTION_OPENED;
@@ -86,7 +82,7 @@ export default abstract class WSConnection {
       logMsg = `Charging Station connection attempts with URL: '${req.url}'`;
       action = ServerAction.WS_JSON_CONNECTION_OPENED;
     }
-    Logging.logDebug({
+    void Logging.logDebug({
       tenantID: this.tenantID,
       source: this.chargingStationID,
       action: action,
@@ -101,7 +97,7 @@ export default abstract class WSConnection {
         message: `The Charging Station ID is invalid: '${this.chargingStationID}'`
       });
       // Log in the right Tenants
-      Logging.logException(
+      void Logging.logException(
         backendError,
         ServerAction.WS_CONNECTION,
         Constants.CENTRAL_SERVER,
@@ -121,20 +117,7 @@ export default abstract class WSConnection {
   public async initialize(): Promise<void> {
     try {
       // Check Tenant?
-      await DatabaseUtils.checkTenant(this.tenantID);
-      this.validTenant = true;
-      // Cloud Foundry?
-      if (Configuration.isCloudFoundry()) {
-        // Yes: Save the CF App and Instance ID to call the Charging Station from the Rest server
-        const chargingStation = await ChargingStationStorage.getChargingStation(this.tenantID, this.getChargingStationID());
-        // Found?
-        if (chargingStation) {
-          // Update CF Instance
-          chargingStation.cfApplicationIDAndInstanceIndex = Configuration.getCFApplicationIDAndInstanceIndex();
-          // Save it
-          await ChargingStationStorage.saveChargingStation(this.tenantID, chargingStation);
-        }
-      }
+      this.tenant = await DatabaseUtils.checkTenant(this.tenantID);
     } catch (error) {
       // Custom Error
       await Logging.logException(error, ServerAction.WS_CONNECTION, this.getChargingStationID(), 'WSConnection', 'initialize', this.tenantID);
@@ -143,7 +126,7 @@ export default abstract class WSConnection {
         action: ServerAction.WS_CONNECTION,
         module: MODULE_NAME, method: 'initialize',
         message: `Invalid Tenant '${this.tenantID}' in URL '${this.getURL()}'`,
-        detailedMessages: { error: error.message, stack: error.stack }
+        detailedMessages: { error: error.stack }
       });
     }
   }
@@ -200,7 +183,7 @@ export default abstract class WSConnection {
             method: 'onMessage',
             action: commandName,
             message: `Error occurred '${commandName}' with message content '${JSON.stringify(commandPayload)}'`,
-            detailedMessages: [messageType, messageId, commandName, commandPayload, errorDetails]
+            detailedMessages: { messageType, messageId, commandName, commandPayload, errorDetails }
           });
           if (!this.requests[messageId]) {
             // Error
@@ -342,13 +325,11 @@ export default abstract class WSConnection {
   }
 
   public getTenantID(): string {
-    // Check
-    if (this.isTenantValid()) {
-      // Ok
-      return this.tenantID;
-    }
-    // No, go to the master tenant
-    return Constants.DEFAULT_TENANT;
+    return this.tenantID;
+  }
+
+  public getTenant(): Tenant {
+    return this.tenant;
   }
 
   public getToken(): string {
@@ -356,11 +337,7 @@ export default abstract class WSConnection {
   }
 
   public getID(): string {
-    return `${this.getTenantID()}~${this.getChargingStationID()}~${this.uuid}`;
-  }
-
-  public isTenantValid(): boolean {
-    return this.validTenant;
+    return `${this.getTenantID()}~${this.getChargingStationID()}`;
   }
 
   public isWSConnectionOpen(): boolean {

@@ -2,15 +2,18 @@ import { Car, CarCatalog } from './Car';
 import { ChargePointStatus, OCPP15TransactionData, OCPPMeterValue } from './ocpp/OCPPServer';
 import Consumption, { AbstractCurrentConsumption } from './Consumption';
 
-import { BillingTransactionData } from './Billing';
 import ChargingStation from '../types/ChargingStation';
+import Company from './Company';
 import { OCPICdr } from './ocpi/OCPICdr';
 import { OCPISession } from './ocpi/OCPISession';
 import { OICPChargeDetailRecord } from './oicp/OICPChargeDetailRecord';
 import { OICPSession } from './oicp/OICPSession';
 import { PricingModel } from './Pricing';
-import { RefundTransactionData } from './Refund';
+import Site from './Site';
+import SiteArea from './SiteArea';
 import Tag from './Tag';
+import { TransactionBillingData } from './Billing';
+import { TransactionRefundData } from './Refund';
 import User from './User';
 
 export type InactivityStatusLevel =
@@ -32,6 +35,19 @@ export enum TransactionAction {
   END = 'end'
 }
 
+export interface UserDefaultTagCar {
+  car: Car;
+  tag: Tag;
+  errorCodes?: StartTransactionErrorCode[];
+}
+
+export enum StartTransactionErrorCode {
+  BILLING_NO_PAYMENT_METHOD = 'no_payment_method', // start transaction is not possible - user has no payment method
+  BILLING_NO_TAX = 'billing_no_tax', // start transaction is not possible - the tax ID is not set or inconsistent
+  BILLING_NO_SETTINGS = 'billing_no_settings', // start transaction not possible - billing settings are not set (or partially set)
+  BILLING_INCONSISTENT_SETTINGS = 'billing_inconsistent_settings', // start transaction not possible - billing settings are inconsistent
+}
+
 export default interface Transaction extends AbstractCurrentConsumption {
   id?: number;
   carID?: string;
@@ -39,8 +55,12 @@ export default interface Transaction extends AbstractCurrentConsumption {
   carCatalogID?: number;
   carCatalog?: CarCatalog;
   phasesUsed?: CSPhasesUsed;
+  companyID?: string;
+  company?: Company;
   siteID?: string;
+  site?: Site;
   siteAreaID?: string;
+  siteArea?: SiteArea;
   issuer: boolean;
   connectorId: number;
   tagID: string;
@@ -55,7 +75,6 @@ export default interface Transaction extends AbstractCurrentConsumption {
     tagID: string;
     userID: string;
   };
-  refundData?: RefundTransactionData;
   chargeBox?: ChargingStation;
   meterStart: number;
   timestamp: Date;
@@ -78,12 +97,14 @@ export default interface Transaction extends AbstractCurrentConsumption {
   numberOfMeterValues: number;
   uniqueId?: string;
   values?: Consumption[];
-  billingData?: BillingTransactionData;
   ocpi?: boolean;
   ocpiWithCdr?: boolean;
   ocpiData?: TransactionOcpiData;
   oicpData?: TransactionOicpData;
+  billingData?: TransactionBillingData;
+  refundData?: TransactionRefundData;
   migrationTag?: string;
+  authorizationID?: string;
 }
 
 export interface TransactionOcpiData {
@@ -109,6 +130,7 @@ export interface CSPhasesUsed {
 export interface TransactionStop {
   timestamp: Date;
   meterStop: number;
+  reason?: string;
   tagID: string;
   userID: string;
   user?: User;

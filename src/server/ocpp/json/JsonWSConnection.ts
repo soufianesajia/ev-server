@@ -1,5 +1,5 @@
 import { OCPPErrorType, OCPPMessageType } from '../../../types/ocpp/OCPPCommon';
-import { OCPPProtocol, OCPPVersion, RegistrationStatus } from '../../../types/ocpp/OCPPServer';
+import { OCPPProtocol, OCPPVersion } from '../../../types/ocpp/OCPPServer';
 import { ServerAction, WSServerProtocol } from '../../../types/Server';
 import WebSocket, { CloseEvent, ErrorEvent } from 'ws';
 
@@ -7,12 +7,14 @@ import BackendError from '../../../exception/BackendError';
 import ChargingStationClient from '../../../client/ocpp/ChargingStationClient';
 import ChargingStationStorage from '../../../storage/mongodb/ChargingStationStorage';
 import Configuration from '../../../utils/Configuration';
+import Constants from '../../../utils/Constants';
 import JsonCentralSystemServer from './JsonCentralSystemServer';
 import JsonChargingStationClient from '../../../client/ocpp/json/JsonChargingStationClient';
 import JsonChargingStationService from './services/JsonChargingStationService';
 import Logging from '../../../utils/Logging';
 import OCPPError from '../../../exception/OcppError';
 import { OCPPHeader } from '../../../types/ocpp/OCPPHeader';
+import OCPPUtils from '../utils/OCPPUtils';
 import Utils from '../../../utils/Utils';
 import WSConnection from './WSConnection';
 import http from 'http';
@@ -24,10 +26,12 @@ export default class JsonWSConnection extends WSConnection {
   private chargingStationClient: ChargingStationClient;
   private chargingStationService: JsonChargingStationService;
   private headers: OCPPHeader;
+  private lastSeen: Date;
 
   constructor(wsConnection: WebSocket, req: http.IncomingMessage, wsServer: JsonCentralSystemServer) {
     // Call super
     super(wsConnection, req, wsServer);
+    let backendError: BackendError;
     // Check Protocol (required field of OCPP spec)
     switch (wsConnection.protocol) {
       // OCPP 1.6?
@@ -39,13 +43,22 @@ export default class JsonWSConnection extends WSConnection {
         break;
       // Not Found
       default:
-        // Error
-        throw new BackendError({
+        backendError = new BackendError({
           source: this.getChargingStationID(),
           module: MODULE_NAME,
           method: 'constructor',
-          message: `Protocol ${wsConnection.protocol} not supported`
+          message: wsConnection.protocol ?
+            `Web Socket Protocol '${wsConnection.protocol}' not supported` : 'Web Socket Protocol is mandatory'
         });
+        // Log in the right Tenants
+        void Logging.logException(
+          backendError,
+          ServerAction.WS_JSON_CONNECTION_ERROR,
+          this.getChargingStationID(),
+          MODULE_NAME, 'constructor',
+          this.getTenantID()
+        );
+        throw backendError;
     }
     this.isConnectionAlive = true;
     // Handle Socket ping
@@ -64,18 +77,32 @@ export default class JsonWSConnection extends WSConnection {
         chargeBoxIdentity: this.getChargingStationID(),
         ocppVersion: (this.getWSConnection().protocol.startsWith('ocpp') ? this.getWSConnection().protocol.replace('ocpp', '') : this.getWSConnection().protocol) as OCPPVersion,
         ocppProtocol: OCPPProtocol.JSON,
-        chargingStationURL: Configuration.getJsonEndpointConfig().baseSecureUrl
-          ? Configuration.getJsonEndpointConfig().baseSecureUrl
-          : Configuration.getJsonEndpointConfig().baseUrl,
+        chargingStationURL: Configuration.getJsonEndpointConfig().baseSecureUrl ?? Configuration.getJsonEndpointConfig().baseUrl,
         tenantID: this.getTenantID(),
         token: this.getToken(),
         From: {
           Address: this.getClientIP()
         }
       };
-      // Ok
+      // Update the Charging Station
+      const chargingStation = await ChargingStationStorage.getChargingStation(
+        this.getTenant(), this.getChargingStationID(), { issuer: true }, ['id']);
+      if (chargingStation) {
+        // Update Last Seen
+        await ChargingStationStorage.saveChargingStationLastSeen(this.getTenant(),
+          chargingStation.id, { lastSeen: new Date() });
+        // Update CF Instance
+        if (Configuration.isCloudFoundry()) {
+          await ChargingStationStorage.saveChargingStationCFApplicationIDAndInstanceIndex(
+            this.getTenant(), chargingStation.id, Configuration.getCFApplicationIDAndInstanceIndex());
+        }
+      // Must have a valid Token
+      } else {
+        // Check connection Token
+        await OCPPUtils.checkChargingStationConnectionToken(
+          ServerAction.BOOT_NOTIFICATION, this.getTenant(), this.getChargingStationID(), this.getToken(), { headers: this.headers });
+      }
       this.initialized = true;
-      // Log
       await Logging.logInfo({
         tenantID: this.getTenantID(),
         source: this.getChargingStationID(),
@@ -87,10 +114,9 @@ export default class JsonWSConnection extends WSConnection {
   }
 
   public onError(errorEvent: ErrorEvent): void {
-    // Log
     void Logging.logError({
       tenantID: this.getTenantID(),
-      source: this.getChargingStationID() ? this.getChargingStationID() : '',
+      source: this.getChargingStationID(),
       action: ServerAction.WS_JSON_CONNECTION_ERROR,
       module: MODULE_NAME, method: 'onError',
       message: `Error ${errorEvent?.error} ${errorEvent?.message}`,
@@ -99,31 +125,41 @@ export default class JsonWSConnection extends WSConnection {
   }
 
   public onClose(closeEvent: CloseEvent): void {
-    // Log
     void Logging.logInfo({
       tenantID: this.getTenantID(),
-      source: this.getChargingStationID() ? this.getChargingStationID() : '',
+      source: this.getChargingStationID(),
       action: ServerAction.WS_JSON_CONNECTION_CLOSED,
       module: MODULE_NAME, method: 'onClose',
       message: `Connection has been closed, Reason: '${closeEvent.reason ? closeEvent.reason : 'No reason given'}', Message: '${Utils.getWebSocketCloseEventStatusString(Utils.convertToInt(closeEvent))}', Code: '${closeEvent.toString()}'`,
-      detailedMessages: { closeEvent: closeEvent }
+      detailedMessages: { closeEvent }
     });
-    // Remove the connection
-    this.wsServer.removeJsonConnection(this);
   }
 
   public async onPing(): Promise<void> {
+    void Logging.logDebug({
+      tenantID: this.getTenantID(),
+      source: this.getChargingStationID(),
+      action: ServerAction.WS_JSON_CONNECTION_PINGED,
+      module: MODULE_NAME, method: 'onPing',
+      message: 'Ping received',
+    });
     await this.updateChargingStationLastSeen();
   }
 
   public async onPong(): Promise<void> {
     this.isConnectionAlive = true;
+    void Logging.logDebug({
+      tenantID: this.getTenantID(),
+      source: this.getChargingStationID(),
+      action: ServerAction.WS_JSON_CONNECTION_PONGED,
+      module: MODULE_NAME, method: 'onPong',
+      message: 'Pong received',
+    });
     await this.updateChargingStationLastSeen();
   }
 
   public async handleRequest(messageId: string, commandName: ServerAction, commandPayload: Record<string, unknown> | string): Promise<void> {
-    // Log
-    await Logging.logChargingStationServerReceiveAction(MODULE_NAME, this.getTenantID(), this.getChargingStationID(), commandName, commandPayload);
+    await Logging.logChargingStationServerReceiveAction(Constants.MODULE_JSON_OCPP_SERVER_16, this.getTenantID(), this.getChargingStationID(), commandName, commandPayload);
     const methodName = `handle${commandName}`;
     // Check if method exist in the service
     if (typeof this.chargingStationService[methodName] === 'function') {
@@ -133,7 +169,7 @@ export default class JsonWSConnection extends WSConnection {
       // Call it
       const result = await this.chargingStationService[methodName](this.headers, commandPayload);
       // Log
-      await Logging.logChargingStationServerRespondAction(MODULE_NAME, this.getTenantID(), this.getChargingStationID(), commandName, result);
+      await Logging.logChargingStationServerRespondAction(Constants.MODULE_JSON_OCPP_SERVER_16, this.getTenantID(), this.getChargingStationID(), commandName, result);
       // Send Response
       await this.sendMessage(messageId, result, OCPPMessageType.CALL_RESULT_MESSAGE, commandName);
     } else {
@@ -149,29 +185,30 @@ export default class JsonWSConnection extends WSConnection {
   }
 
   public getChargingStationClient(): ChargingStationClient {
-    // Only return client if WS is open
-    if (this.isWSConnectionOpen()) {
-      return this.chargingStationClient;
+    if (!this.isWSConnectionOpen()) {
+      void Logging.logError({
+        tenantID: this.getTenantID(),
+        source: this.getChargingStationID(),
+        module: MODULE_NAME, method: 'getChargingStationClient',
+        action: ServerAction.WS_CONNECTION,
+        message: `Cannot retrieve WS client from WS connection with status '${this.getConnectionStatusString()}'`,
+      });
+      return null;
     }
-    void Logging.logError({
-      tenantID: this.getTenantID(),
-      source: this.getChargingStationID(),
-      module: MODULE_NAME, method: 'getChargingStationClient',
-      action: ServerAction.WS_CONNECTION,
-      message: `Cannot retrieve WS client from WS connection with status '${this.getConnectionStatusString()}'`,
-    });
-    return null;
+    return this.chargingStationClient;
   }
 
   private async updateChargingStationLastSeen(): Promise<void> {
-    const chargingStation = await ChargingStationStorage.getChargingStation(this.getTenantID(), this.getChargingStationID(), { issuer: true });
-    if (chargingStation) {
-    // if (chargingStation?.registrationStatus === RegistrationStatus.ACCEPTED) {
-      await ChargingStationStorage.saveChargingStationLastSeen(this.getTenantID(), this.getChargingStationID(),
-        {
-          lastSeen: new Date()
-        });
+    // Update once every 60s
+    if (!this.lastSeen || (Date.now() - this.lastSeen.getTime()) > Constants.LAST_SEEN_UPDATE_INTERVAL_MILLIS) {
+      // Update last seen
+      this.lastSeen = new Date();
+      const chargingStation = await ChargingStationStorage.getChargingStation(this.getTenant(),
+        this.getChargingStationID(), { issuer: true }, ['id']);
+      if (chargingStation) {
+        await ChargingStationStorage.saveChargingStationLastSeen(this.getTenant(), this.getChargingStationID(),
+          { lastSeen: this.lastSeen });
+      }
     }
   }
 }
-

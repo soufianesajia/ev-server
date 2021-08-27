@@ -26,6 +26,7 @@ import { ServerAction } from './types/Server';
 import SoapCentralSystemServer from './server/ocpp/soap/SoapCentralSystemServer';
 import StorageConfiguration from './types/configuration/StorageConfiguration';
 import Utils from './utils/Utils';
+import chalk from 'chalk';
 import cluster from 'cluster';
 import global from './types/GlobalType';
 
@@ -151,13 +152,13 @@ export default class Bootstrap {
     } catch (error) {
       // Log
       // eslint-disable-next-line no-console
-      console.error(error);
+      console.error(chalk.red(error));
       await Logging.logError({
         tenantID: Constants.DEFAULT_TENANT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'start',
         message: 'Unexpected exception',
-        detailedMessages: { error: error.message, stack: error.stack }
+        detailedMessages: { error: error.stack }
       });
     }
   }
@@ -228,13 +229,13 @@ export default class Bootstrap {
     } catch (error) {
       // Log
       // eslint-disable-next-line no-console
-      console.error(error);
+      console.error(chalk.red(error));
       await Logging.logError({
         tenantID: Constants.DEFAULT_TENANT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startMasters',
         message: `Unexpected exception ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master'}: ${error.toString()}`,
-        detailedMessages: { error: error.message, stack: error.stack }
+        detailedMessages: { error: error.stack }
       });
     }
   }
@@ -323,13 +324,13 @@ export default class Bootstrap {
     } catch (error) {
       // Log
       // eslint-disable-next-line no-console
-      console.error(error);
+      console.error(chalk.red(error));
       await Logging.logError({
         tenantID: Constants.DEFAULT_TENANT,
         action: ServerAction.STARTUP,
         module: MODULE_NAME, method: 'startServersListening',
         message: `Unexpected exception ${cluster.isWorker ? 'in worker ' + cluster.worker.id.toString() : 'in master'}: ${error.toString()}`,
-        detailedMessages: { error: error.message, stack: error.stack }
+        detailedMessages: { error: error.stack }
       });
     }
   }
@@ -338,6 +339,6 @@ export default class Bootstrap {
 // Start
 Bootstrap.start().catch(
   (error) => {
-    console.error(error);
+    console.error(chalk.red(error));
   }
 );

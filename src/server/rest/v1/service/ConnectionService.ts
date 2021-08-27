@@ -1,10 +1,12 @@
 import { Action, Entity } from '../../../../types/Authorization';
+import Connection, { ConnectionType } from '../../../../types/Connection';
 import { HTTPAuthError, HTTPError } from '../../../../types/HTTPError';
 import { NextFunction, Request, Response } from 'express';
 
 import AppAuthError from '../../../../exception/AppAuthError';
 import AppError from '../../../../exception/AppError';
 import Authorizations from '../../../../authorization/Authorizations';
+import CarConnectorFactory from '../../../../integration/car-connector/CarConnectorFactory';
 import ConnectionSecurity from './security/ConnectionSecurity';
 import ConnectionStorage from '../../../../storage/mongodb/ConnectionStorage';
 import ConnectionValidator from '../validator/ConnectionValidator';
@@ -13,6 +15,7 @@ import Logging from '../../../../utils/Logging';
 import RefundFactory from '../../../../integration/refund/RefundFactory';
 import { ServerAction } from '../../../../types/Server';
 import { StatusCodes } from 'http-status-codes';
+import Utils from '../../../../utils/Utils';
 import UtilsService from './UtilsService';
 
 const MODULE_NAME = 'ConnectionService';
@@ -43,11 +46,11 @@ export default class ConnectionService {
     }
     // Check User
     let userProject: string[] = [];
-    if (await Authorizations.canListUsers(req.user)) {
+    if ((await Authorizations.canListUsers(req.user)).authorized) {
       userProject = [ 'createdBy.name', 'createdBy.firstName', 'lastChangedBy.name', 'lastChangedBy.firstName' ];
     }
     // Get it
-    const connection = await ConnectionStorage.getConnection(req.user.tenantID, connectionID,
+    const connection = await ConnectionStorage.getConnection(req.tenant, connectionID,
       [ 'id', 'connectorId', 'createdAt', 'validUntil', 'lastChangedOn', 'createdOn', ...userProject ]);
     UtilsService.assertObjectExists(action, connection, `Connection ID '${connectionID}' does not exist`,
       MODULE_NAME, 'handleGetConnection', req.user);
@@ -69,11 +72,11 @@ export default class ConnectionService {
     const filteredRequest = ConnectionSecurity.filterConnectionsRequest(req.query);
     // Check Users
     let userProject: string[] = [];
-    if (await Authorizations.canListUsers(req.user)) {
+    if ((await Authorizations.canListUsers(req.user)).authorized) {
       userProject = [ 'createdBy.name', 'createdBy.firstName', 'lastChangedBy.name', 'lastChangedBy.firstName' ];
     }
     // Get
-    const connections = await ConnectionStorage.getConnectionsByUserId(req.user.tenantID, filteredRequest.UserID,
+    const connections = await ConnectionStorage.getConnectionsByUserId(req.tenant, filteredRequest.UserID,
       [ 'id', 'connectorId', 'createdAt', 'validUntil', 'lastChangedOn', 'createdOn', ...userProject ]);
     res.json(connections);
     next();
@@ -89,23 +92,38 @@ export default class ConnectionService {
         module: MODULE_NAME, method: 'handleCreateConnection'
       });
     }
-    // Filter
-    const filteredRequest = ConnectionSecurity.filterConnectionCreateRequest(req.body);
-    // Get factory
-    const refundConnector = await RefundFactory.getRefundImpl(req.user.tenantID);
-    // Create
-    const connection = await refundConnector.createConnection(filteredRequest.userId, filteredRequest.data);
     // Check
     ConnectionValidator.getInstance().validateConnectionCreation(req.body);
-    // Log
-    await Logging.logSecurityInfo({
-      tenantID: req.user.tenantID, user: req.user,
-      module: MODULE_NAME, method: 'handleCreateConnection',
-      message: `Connection to '${connection.connectorId}' has been created successfully`,
-      action: action,
-      detailedMessages: { connection }
-    });
-    // Ok
+    // Filter
+    const filteredRequest = ConnectionSecurity.filterConnectionCreateRequest(req.body);
+    let integrationConnector = null;
+    switch (filteredRequest.connectorId) {
+      case ConnectionType.MERCEDES:
+        integrationConnector = await CarConnectorFactory.getCarConnectorImpl(req.tenant, filteredRequest.connectorId);
+        break;
+      case ConnectionType.CONCUR:
+        integrationConnector = await RefundFactory.getRefundImpl(req.tenant);
+        break;
+    }
+    if (!Utils.isNullOrUndefined(integrationConnector)) {
+      // Create
+      const connection: Connection = await integrationConnector.createConnection(filteredRequest.userId, filteredRequest.data);
+      await Logging.logSecurityInfo({
+        tenantID: req.user.tenantID, user: req.user,
+        module: MODULE_NAME, method: 'handleCreateConnection',
+        message: `Connection to '${connection.connectorId}' has been created successfully`,
+        action: action,
+        detailedMessages: { connection }
+      });
+    } else {
+      throw new AppError({
+        errorCode: HTTPError.GENERAL_ERROR,
+        source: Constants.CENTRAL_SERVER,
+        user: req.user,
+        module: MODULE_NAME, method: 'handleCreateConnection',
+        message: `No integration found for connector '${filteredRequest.connectorId}' `
+      });
+    }
     res.status(StatusCodes.OK).json(Object.assign({ id: req.user.tenantID }, Constants.REST_RESPONSE_SUCCESS));
     next();
   }
@@ -123,11 +141,11 @@ export default class ConnectionService {
       });
     }
     // Get connection
-    const connection = await ConnectionStorage.getConnection(req.user.tenantID, connectionID);
+    const connection = await ConnectionStorage.getConnection(req.tenant, connectionID);
     UtilsService.assertObjectExists(action, connection, `Connection ID '${connectionID}' does not exist`,
       MODULE_NAME, 'handleDeleteConnection', req.user);
     // Delete
-    await ConnectionStorage.deleteConnectionById(req.user.tenantID, connection.id);
+    await ConnectionStorage.deleteConnectionById(req.tenant, connection.id);
     // Log
     await Logging.logSecurityInfo({
       tenantID: req.user.tenantID,

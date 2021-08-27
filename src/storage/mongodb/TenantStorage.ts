@@ -7,7 +7,7 @@ import { DataResult } from '../../types/DataResult';
 import DatabaseUtils from './DatabaseUtils';
 import DbParams from '../../types/database/DbParams';
 import Logging from '../../utils/Logging';
-import { ObjectID } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import Utils from '../../utils/Utils';
 
 const MODULE_NAME = 'TenantStorage';
@@ -52,9 +52,9 @@ export default class TenantStorage {
     const tenantFilter: any = {};
     // Build Request
     if (tenantToSave.id) {
-      tenantFilter._id = Utils.convertToObjectID(tenantToSave.id);
+      tenantFilter._id = DatabaseUtils.convertToObjectID(tenantToSave.id);
     } else {
-      tenantFilter._id = new ObjectID();
+      tenantFilter._id = new ObjectId();
     }
     // Properties to save
     // eslint-disable-next-line prefer-const
@@ -88,11 +88,11 @@ export default class TenantStorage {
       { upsert: true, returnDocument: 'after' });
     // Save Logo
     if (saveLogo) {
-      await TenantStorage._saveTenantLogo(tenantMDB._id.toHexString(), tenantToSave.logo);
+      await TenantStorage._saveTenantLogo(tenantMDB._id.toString(), tenantToSave.logo);
     }
     // Debug
     await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'saveTenant', uniqueTimerID, tenantMDB);
-    return tenantFilter._id.toHexString();
+    return tenantFilter._id.toString();
   }
 
   public static async createTenantDB(tenantID: string): Promise<void> {
@@ -127,7 +127,7 @@ export default class TenantStorage {
     // Tenant
     if (!Utils.isEmptyArray(params.tenantIDs)) {
       filters._id = {
-        $in: params.tenantIDs.map((tenantID) => Utils.convertToObjectID(tenantID))
+        $in: params.tenantIDs.map((tenantID) => DatabaseUtils.convertToObjectID(tenantID))
       };
     }
     // Name
@@ -223,7 +223,7 @@ export default class TenantStorage {
     // Delete
     await global.database.getCollection<Tenant>(Constants.DEFAULT_TENANT, 'tenants')
       .findOneAndDelete({
-        '_id': Utils.convertToObjectID(id)
+        '_id': DatabaseUtils.convertToObjectID(id)
       });
     // Debug
     await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'deleteTenant', uniqueTimerID, { id });
@@ -238,18 +238,18 @@ export default class TenantStorage {
     await Logging.traceEnd(Constants.DEFAULT_TENANT, MODULE_NAME, 'deleteTenantDB', uniqueTimerID, { id });
   }
 
-  public static async getTenantLogo(tenantID: string): Promise<TenantLogo> {
+  public static async getTenantLogo(tenant: Tenant): Promise<TenantLogo> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getTenantLogo');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getTenantLogo');
     // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Read DB
-    const tenantLogoMDB = await global.database.getCollection<{ _id: ObjectID; logo: string }>(Constants.DEFAULT_TENANT, 'tenantlogos')
-      .findOne({ _id: Utils.convertToObjectID(tenantID) });
+    const tenantLogoMDB = await global.database.getCollection<{ _id: ObjectId; logo: string }>(Constants.DEFAULT_TENANT, 'tenantlogos')
+      .findOne({ _id: DatabaseUtils.convertToObjectID(tenant.id) });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getTenantLogo', uniqueTimerID, tenantLogoMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getTenantLogo', uniqueTimerID, tenantLogoMDB);
     return {
-      id: tenantID,
+      id: tenant.id,
       logo: tenantLogoMDB ? tenantLogoMDB.logo : null
     };
   }
@@ -257,11 +257,9 @@ export default class TenantStorage {
   private static async _saveTenantLogo(tenantID: string, tenantLogoToSave: string): Promise<void> {
     // Debug
     const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveTenantLogo');
-    // Check Tenant
-    await DatabaseUtils.checkTenant(tenantID);
     // Modify
     await global.database.getCollection<any>(Constants.DEFAULT_TENANT, 'tenantlogos').findOneAndUpdate(
-      { '_id': Utils.convertToObjectID(tenantID) },
+      { '_id': DatabaseUtils.convertToObjectID(tenantID) },
       { $set: { logo: tenantLogoToSave } },
       { upsert: true });
     // Debug

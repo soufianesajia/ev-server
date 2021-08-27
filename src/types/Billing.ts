@@ -1,7 +1,7 @@
 import { ActionsResponse } from './GlobalType';
 import User from './User';
 
-export interface BillingTransactionData {
+export interface TransactionBillingData {
   withBillingActive?: boolean;
   lastUpdate?: Date;
   stop?: BillingDataTransactionStop;
@@ -113,6 +113,9 @@ export enum BillingInvoiceStatus {
   PAID = 'paid',
   OPEN = 'open',
   DRAFT = 'draft',
+  VOID = 'void',
+  UNCOLLECTIBLE = 'uncollectible',
+  DELETED = 'deleted',
 }
 
 export interface BillingOperationResult {

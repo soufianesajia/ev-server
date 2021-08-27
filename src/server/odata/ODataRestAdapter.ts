@@ -51,7 +51,7 @@ export default class ODataRestAdapter {
       // Default timezone
       req.timezone = 'UTC';
       // Get settings
-      const sacSetting = await SettingStorage.getAnalyticsSettings(tenant.id);
+      const sacSetting = await SettingStorage.getAnalyticsSettings(tenant);
       if (sacSetting && sacSetting.sac && sacSetting.sac.timezone) {
         req.timezone = sacSetting.sac.timezone;
       }
@@ -102,7 +102,7 @@ export default class ODataRestAdapter {
         module: MODULE_NAME, method: 'query',
         action: ServerAction.ODATA_SERVER,
         message: error.message,
-        detailedMessages: { error: error.message, stack: error.stack }
+        detailedMessages: { error: error.stack }
       });
       cb(error);
     }

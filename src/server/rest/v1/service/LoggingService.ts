@@ -8,8 +8,8 @@ import Constants from '../../../../utils/Constants';
 import { DataResult } from '../../../../types/DataResult';
 import { HTTPAuthError } from '../../../../types/HTTPError';
 import { Log } from '../../../../types/Log';
-import LoggingSecurity from './security/LoggingSecurity';
 import LoggingStorage from '../../../../storage/mongodb/LoggingStorage';
+import LoggingValidator from '../validator/LoggingValidator';
 import { ServerAction } from '../../../../types/Server';
 import TenantComponents from '../../../../types/TenantComponents';
 import Utils from '../../../../utils/Utils';
@@ -33,12 +33,7 @@ export default class LoggingService {
 
   public static async handleGetLog(action: ServerAction, req: Request, res: Response, next: NextFunction): Promise<void> {
     // Filter
-    const filteredRequest = LoggingSecurity.filterLogRequest(req.query);
-    // Get logs
-    const logging = await LoggingStorage.getLog(req.user.tenantID, filteredRequest.ID, [
-      'id', 'level', 'timestamp', 'type', 'source', 'host', 'process', 'action', 'message',
-      'user.name', 'user.firstName', 'actionOnUser.name', 'actionOnUser.firstName', 'hasDetailedMessages', 'detailedMessages'
-    ]);
+    const filteredRequest = LoggingValidator.getInstance().validateLoggingGetReq(req.query);
     // Check auth
     if (!await Authorizations.canReadLog(req.user)) {
       throw new AppAuthError({
@@ -48,7 +43,11 @@ export default class LoggingService {
         module: MODULE_NAME, method: 'handleGetLog'
       });
     }
-    // Return
+    // Get Log
+    const logging = await LoggingStorage.getLog(req.tenant, filteredRequest.ID, [
+      'id', 'level', 'timestamp', 'type', 'source', 'host', 'process', 'action', 'message',
+      'user.name', 'user.firstName', 'actionOnUser.name', 'actionOnUser.firstName', 'hasDetailedMessages', 'detailedMessages'
+    ]);
     res.json(logging);
     next();
   }
@@ -102,12 +101,12 @@ export default class LoggingService {
       });
     }
     // Filter
-    const filteredRequest = LoggingSecurity.filterLogsRequest(req.query);
+    const filteredRequest = LoggingValidator.getInstance().validateLoggingsGetReq(req.query);
     // Add filter for Site Admins
     if (Utils.isComponentActiveFromToken(req.user, TenantComponents.ORGANIZATION) && Authorizations.isSiteAdmin(req.user)) {
       // Optimization: Retrieve Charging Stations to get the logs only for the Site Admin user
-      const chargingStations = await ChargingStationStorage.getChargingStations(req.user.tenantID,
-        { siteIDs: req.user.sitesAdmin }, Constants.DB_PARAMS_MAX_LIMIT);
+      const chargingStations = await ChargingStationStorage.getChargingStations(req.tenant,
+        { siteIDs: req.user.sitesAdmin, withSiteArea: true }, Constants.DB_PARAMS_MAX_LIMIT);
       // Check if Charging Station is already filtered
       if (chargingStations.count === 0) {
         filteredRequest.Source = '';
@@ -139,7 +138,7 @@ export default class LoggingService {
     }, {
       limit: filteredRequest.Limit,
       skip: filteredRequest.Skip,
-      sort: filteredRequest.SortFields,
+      sort: UtilsService.httpSortFieldsToMongoDB(filteredRequest.SortFields),
       onlyRecordCount: filteredRequest.OnlyRecordCount
     }, [
       'id', 'level', 'timestamp', 'type', 'source', 'host', 'process', 'action', 'message',
@@ -148,4 +147,3 @@ export default class LoggingService {
     return loggings;
   }
 }
-

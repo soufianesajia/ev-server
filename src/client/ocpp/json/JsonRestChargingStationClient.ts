@@ -1,8 +1,9 @@
 import ChargingStation, { Command } from '../../../types/ChargingStation';
-import { OCPPChangeAvailabilityCommandParam, OCPPChangeAvailabilityCommandResult, OCPPChangeConfigurationCommandParam, OCPPChangeConfigurationCommandResult, OCPPClearCacheCommandResult, OCPPClearChargingProfileCommandParam, OCPPClearChargingProfileCommandResult, OCPPGetCompositeScheduleCommandParam, OCPPGetCompositeScheduleCommandResult, OCPPGetConfigurationCommandParam, OCPPGetConfigurationCommandResult, OCPPGetDiagnosticsCommandParam, OCPPGetDiagnosticsCommandResult, OCPPRemoteStartTransactionCommandParam, OCPPRemoteStartTransactionCommandResult, OCPPRemoteStopTransactionCommandParam, OCPPRemoteStopTransactionCommandResult, OCPPResetCommandParam, OCPPResetCommandResult, OCPPSetChargingProfileCommandParam, OCPPSetChargingProfileCommandResult, OCPPStatus, OCPPUnlockConnectorCommandParam, OCPPUnlockConnectorCommandResult, OCPPUpdateFirmwareCommandParam } from '../../../types/ocpp/OCPPClient';
+import { OCPPChangeAvailabilityCommandParam, OCPPChangeAvailabilityCommandResult, OCPPChangeConfigurationCommandParam, OCPPChangeConfigurationCommandResult, OCPPClearCacheCommandResult, OCPPClearChargingProfileCommandParam, OCPPClearChargingProfileCommandResult, OCPPDataTransferCommandParam, OCPPDataTransferCommandResult, OCPPGetCompositeScheduleCommandParam, OCPPGetCompositeScheduleCommandResult, OCPPGetConfigurationCommandParam, OCPPGetConfigurationCommandResult, OCPPGetDiagnosticsCommandParam, OCPPGetDiagnosticsCommandResult, OCPPRemoteStartTransactionCommandParam, OCPPRemoteStartTransactionCommandResult, OCPPRemoteStopTransactionCommandParam, OCPPRemoteStopTransactionCommandResult, OCPPResetCommandParam, OCPPResetCommandResult, OCPPSetChargingProfileCommandParam, OCPPSetChargingProfileCommandResult, OCPPStatus, OCPPUnlockConnectorCommandParam, OCPPUnlockConnectorCommandResult, OCPPUpdateFirmwareCommandParam } from '../../../types/ocpp/OCPPClient';
 import { OCPPIncomingRequest, OCPPMessageType, OCPPOutgoingRequest } from '../../../types/ocpp/OCPPCommon';
 import { ServerAction, WSServerProtocol } from '../../../types/Server';
 
+import BackendError from '../../../exception/BackendError';
 import ChargingStationClient from '../ChargingStationClient';
 import Configuration from '../../../utils/Configuration';
 import Logging from '../../../utils/Logging';
@@ -23,7 +24,16 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
     super();
     this.tenantID = tenantID;
     // Get URL
-    let chargingStationURL: string = chargingStation.chargingStationURL;
+    let chargingStationURL = chargingStation.chargingStationURL;
+    if (!chargingStationURL) {
+      throw new BackendError({
+        source: chargingStation.id,
+        module: MODULE_NAME,
+        method: 'constructor',
+        message: 'Cannot access the Charging Station via a REST call because no URL is provided',
+        detailedMessages: { chargingStation }
+      });
+    }
     // Check URL: remove starting and trailing '/'
     if (chargingStationURL.endsWith('/')) {
       // Remove '/'
@@ -87,10 +97,15 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
     return this.sendMessage(this.buildRequest(Command.UPDATE_FIRMWARE, params));
   }
 
+  public async dataTransfer(params: OCPPDataTransferCommandParam): Promise<OCPPDataTransferCommandResult> {
+    return this.sendMessage(this.buildRequest(Command.TRIGGER_DATA_TRANSFER, params));
+  }
+
   private async openConnection(): Promise<unknown> {
     // Log
     await Logging.logInfo({
       tenantID: this.tenantID,
+      siteID: this.chargingStation.siteID,
       source: this.chargingStation.id,
       action: ServerAction.WS_REST_CLIENT_CONNECTION_OPENED,
       module: MODULE_NAME, method: 'onOpen',
@@ -124,6 +139,7 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
         // Log
         await Logging.logInfo({
           tenantID: this.tenantID,
+          siteID: this.chargingStation.siteID,
           source: this.chargingStation.id,
           action: ServerAction.WS_REST_CLIENT_CONNECTION_OPENED,
           module: MODULE_NAME, method: 'onOpen',
@@ -137,10 +153,12 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
         // Log
         await Logging.logInfo({
           tenantID: this.tenantID,
+          siteID: this.chargingStation.siteID,
           source: this.chargingStation.id,
           action: ServerAction.WS_REST_CLIENT_CONNECTION_CLOSED,
           module: MODULE_NAME, method: 'onClose',
-          message: `Connection closed to '${this.serverURL}', Message: '${Utils.getWebSocketCloseEventStatusString(code)}', Code: '${code}'`
+          message: `Connection closed to '${this.serverURL}', Message: '${Utils.getWebSocketCloseEventStatusString(code)}', Code: '${code}'`,
+          detailedMessages: { code }
         });
       };
       // Handle Error Message
@@ -148,11 +166,12 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
         // Log
         await Logging.logError({
           tenantID: this.tenantID,
+          siteID: this.chargingStation.siteID,
           source: this.chargingStation.id,
           action: ServerAction.WS_REST_CLIENT_CONNECTION_ERROR,
           module: MODULE_NAME, method: 'onError',
           message: `Connection error to '${this.serverURL}: ${error.toString()}`,
-          detailedMessages: { error: error.message, stack: error.stack }
+          detailedMessages: { error: error.stack }
         });
         // Terminate WS in error
         this.terminateConnection();
@@ -169,11 +188,12 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
               // Error message
               await Logging.logError({
                 tenantID: this.tenantID,
+                siteID: this.chargingStation.siteID,
                 source: this.chargingStation.id,
                 action: ServerAction.WS_REST_CLIENT_ERROR_RESPONSE,
                 module: MODULE_NAME, method: 'onMessage',
                 message: `${commandPayload.toString()}`,
-                detailedMessages: [messageType, messageId, commandName, commandPayload, errorDetails]
+                detailedMessages: { messageType, messageId, commandName, commandPayload, errorDetails }
               });
               // Resolve with error message
               this.requests[messageId].reject({ status: OCPPStatus.REJECTED, error: [messageType, messageId, commandName, commandPayload, errorDetails] });
@@ -187,11 +207,12 @@ export default class JsonRestChargingStationClient extends ChargingStationClient
             // Error message
             await Logging.logError({
               tenantID: this.tenantID,
+              siteID: this.chargingStation.siteID,
               source: this.chargingStation.id,
               action: ServerAction.WS_REST_CLIENT_ERROR_RESPONSE,
               module: MODULE_NAME, method: 'onMessage',
               message: 'Received unknown message',
-              detailedMessages: [messageType, messageId, commandName, commandPayload, errorDetails]
+              detailedMessages: { messageType, messageId, commandName, commandPayload, errorDetails }
             });
           }
         } catch (error) {

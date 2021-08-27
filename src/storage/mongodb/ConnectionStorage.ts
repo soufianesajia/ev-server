@@ -3,7 +3,8 @@ import Constants from '../../utils/Constants';
 import { DataResult } from '../../types/DataResult';
 import DatabaseUtils from './DatabaseUtils';
 import Logging from '../../utils/Logging';
-import { ObjectID } from 'mongodb';
+import { ObjectId } from 'mongodb';
+import Tenant from '../../types/Tenant';
 import Utils from '../../utils/Utils';
 import global from '../../types/GlobalType';
 
@@ -11,34 +12,34 @@ const MODULE_NAME = 'ConnectionStorage';
 
 export default class ConnectionStorage {
 
-  static async saveConnection(tenantID: string, connectionToSave: Connection): Promise<string> {
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'saveConnection');
-    await DatabaseUtils.checkTenant(tenantID);
+  static async saveConnection(tenant: Tenant, connectionToSave: Connection): Promise<string> {
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'saveConnection');
+    DatabaseUtils.checkTenantObject(tenant);
     // Create
     const connectionMDB: any = {
-      _id: !connectionToSave.id ? new ObjectID() : Utils.convertToObjectID(connectionToSave.id),
+      _id: !connectionToSave.id ? new ObjectId() : DatabaseUtils.convertToObjectID(connectionToSave.id),
       connectorId: connectionToSave.connectorId,
-      userId: Utils.convertToObjectID(connectionToSave.userId),
+      userId: DatabaseUtils.convertToObjectID(connectionToSave.userId),
       createdAt: Utils.convertToDate(connectionToSave.createdAt),
       updatedAt: Utils.convertToDate(connectionToSave.updatedAt),
       validUntil: Utils.convertToDate(connectionToSave.validUntil),
       data: connectionToSave.data
     };
     // Update
-    const result = await global.database.getCollection<any>(tenantID, 'connections').findOneAndUpdate(
+    const result = await global.database.getCollection<any>(tenant.id, 'connections').findOneAndUpdate(
       { _id: connectionMDB._id },
       { $set: connectionMDB },
       { upsert: true, returnDocument: 'after' });
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'saveConnection', uniqueTimerID, connectionMDB);
-    return result.value._id.toHexString();
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'saveConnection', uniqueTimerID, connectionMDB);
+    return result.value._id.toString();
   }
 
-  static async getConnectionByConnectorIdAndUserId(tenantID: string, connectorId: string, userId: string, projectFields?: string[]): Promise<Connection> {
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getConnectionByConnectorIdAndUserId');
-    await DatabaseUtils.checkTenant(tenantID);
+  static async getConnectionByConnectorIdAndUserId(tenant: Tenant, connectorId: string, userId: string, projectFields?: string[]): Promise<Connection> {
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getConnectionByConnectorIdAndUserId');
+    DatabaseUtils.checkTenantObject(tenant);
     const aggregation = [];
     aggregation.push({
-      $match: { connectorId: connectorId, userId: Utils.convertToObjectID(userId) }
+      $match: { connectorId: connectorId, userId: DatabaseUtils.convertToObjectID(userId) }
     });
     // Convert Object ID to string
     DatabaseUtils.pushConvertObjectIDToString(aggregation, 'userId');
@@ -47,23 +48,23 @@ export default class ConnectionStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Exec
-    const connections = await global.database.getCollection<any>(tenantID, 'connections')
+    const connections = await global.database.getCollection<any>(tenant.id, 'connections')
       .aggregate(aggregation)
       .toArray();
     let connection: Connection;
     if (connections && connections.length > 0) {
       connection = connections[0];
     }
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getConnectionByConnectorIdAndUserId', uniqueTimerID, connections);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getConnectionByConnectorIdAndUserId', uniqueTimerID, connections);
     return connection;
   }
 
-  static async getConnectionsByUserId(tenantID: string, userID: string, projectFields?: string[]): Promise<DataResult<Connection>> {
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getConnectionsByUserId');
-    await DatabaseUtils.checkTenant(tenantID);
+  static async getConnectionsByUserId(tenant: Tenant, userID: string, projectFields?: string[]): Promise<DataResult<Connection>> {
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getConnectionsByUserId');
+    DatabaseUtils.checkTenantObject(tenant);
     const aggregation = [];
     aggregation.push({
-      $match: { userId: Utils.convertToObjectID(userID) }
+      $match: { userId: DatabaseUtils.convertToObjectID(userID) }
     });
     // Convert Object ID to string
     DatabaseUtils.pushConvertObjectIDToString(aggregation, 'userId');
@@ -72,25 +73,25 @@ export default class ConnectionStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Get connections
-    const connectionsMDB = await global.database.getCollection<Connection>(tenantID, 'connections')
+    const connectionsMDB = await global.database.getCollection<Connection>(tenant.id, 'connections')
       .aggregate(aggregation, {
         allowDiskUse: true
       })
       .toArray();
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getConnectionByUserId', uniqueTimerID, connectionsMDB);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getConnectionByUserId', uniqueTimerID, connectionsMDB);
     return {
       count: connectionsMDB.length,
       result: connectionsMDB
     };
   }
 
-  static async getConnection(tenantID: string, id: string = Constants.UNKNOWN_OBJECT_ID, projectFields?: string[]): Promise<Connection> {
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'getConnection');
-    await DatabaseUtils.checkTenant(tenantID);
+  static async getConnection(tenant: Tenant, id: string = Constants.UNKNOWN_OBJECT_ID, projectFields?: string[]): Promise<Connection> {
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'getConnection');
+    DatabaseUtils.checkTenantObject(tenant);
     const aggregation = [];
     // Filters
     aggregation.push({
-      $match: { _id: Utils.convertToObjectID(id) }
+      $match: { _id: DatabaseUtils.convertToObjectID(id) }
     });
     // Convert Object ID to string
     DatabaseUtils.pushConvertObjectIDToString(aggregation, 'userId');
@@ -99,38 +100,38 @@ export default class ConnectionStorage {
     // Project
     DatabaseUtils.projectFields(aggregation, projectFields);
     // Exec
-    const connections = await global.database.getCollection<Connection>(tenantID, 'connections')
+    const connections = await global.database.getCollection<Connection>(tenant.id, 'connections')
       .aggregate(aggregation)
       .toArray();
     let connection: Connection;
     if (connections && connections.length > 0) {
       connection = connections[0];
     }
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'getConnection', uniqueTimerID, connections);
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'getConnection', uniqueTimerID, connections);
     return connection;
   }
 
-  static async deleteConnectionById(tenantID: string, id: string): Promise<void> {
+  static async deleteConnectionById(tenant: Tenant, id: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'deleteConnection');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'deleteConnection');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Delete
-    await global.database.getCollection<Connection>(tenantID, 'connections')
-      .findOneAndDelete({ '_id': Utils.convertToObjectID(id) });
+    await global.database.getCollection<Connection>(tenant.id, 'connections')
+      .findOneAndDelete({ '_id': DatabaseUtils.convertToObjectID(id) });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'deleteConnection', uniqueTimerID, { id });
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'deleteConnection', uniqueTimerID, { id });
   }
 
-  static async deleteConnectionByUserId(tenantID: string, userID: string): Promise<void> {
+  static async deleteConnectionByUserId(tenant: Tenant, userID: string): Promise<void> {
     // Debug
-    const uniqueTimerID = Logging.traceStart(tenantID, MODULE_NAME, 'deleteConnectionByUser');
+    const uniqueTimerID = Logging.traceStart(tenant.id, MODULE_NAME, 'deleteConnectionByUser');
     // Check
-    await DatabaseUtils.checkTenant(tenantID);
+    DatabaseUtils.checkTenantObject(tenant);
     // Delete
-    await global.database.getCollection<any>(tenantID, 'connections')
-      .deleteMany({ 'userId': Utils.convertToObjectID(userID) });
+    await global.database.getCollection<any>(tenant.id, 'connections')
+      .deleteMany({ 'userId': DatabaseUtils.convertToObjectID(userID) });
     // Debug
-    await Logging.traceEnd(tenantID, MODULE_NAME, 'deleteConnectionByUser', uniqueTimerID, { userID });
+    await Logging.traceEnd(tenant.id, MODULE_NAME, 'deleteConnectionByUser', uniqueTimerID, { userID });
   }
 }

@@ -16,7 +16,6 @@ import Constants from './Constants';
 import Cypher from './Cypher';
 import { Decimal } from 'decimal.js';
 import Logging from './Logging';
-import { ObjectID } from 'mongodb';
 import QRCode from 'qrcode';
 import { Request } from 'express';
 import { ServerAction } from '../types/Server';
@@ -43,6 +42,14 @@ import validator from 'validator';
 const MODULE_NAME = 'Utils';
 
 export default class Utils {
+  public static buildConnectorInfo(connectorID: number, transactionID?: number): string {
+    let connectorInfo = `Connector ID '${connectorID}' >`;
+    if (transactionID > 0) {
+      connectorInfo += ` Transaction ID '${transactionID}' >`;
+    }
+    return connectorInfo;
+  }
+
   public static getConnectorsFromChargePoint(chargingStation: ChargingStation, chargePoint: ChargePoint): Connector[] {
     const connectors: Connector[] = [];
     if (!chargingStation || !chargePoint || Utils.isEmptyArray(chargePoint.connectorIDs)) {
@@ -342,7 +349,7 @@ export default class Utils {
     if (language === 'fr') {
       return 'fr_FR';
     } else if (language === 'es') {
-      return 'es_MX';
+      return 'es_ES';
     } else if (language === 'de') {
       return 'de_DE';
     } else if (language === 'pt') {
@@ -351,6 +358,10 @@ export default class Utils {
       return 'it_IT';
     }
     return Constants.DEFAULT_LOCALE;
+  }
+
+  public static convertLocaleForCurrency(locale: string): string {
+    return locale.replace('_', '-');
   }
 
   public static getConnectorLimitSourceString(limitSource: ConnectorCurrentLimitSource): string {
@@ -449,16 +460,6 @@ export default class Utils {
     return userToken.activeComponents.includes(componentName);
   }
 
-  public static convertToObjectID(id: any): ObjectID {
-    let changedID: ObjectID = id;
-    // Check
-    if (typeof id === 'string') {
-      // Create Object
-      changedID = new ObjectID(id);
-    }
-    return changedID;
-  }
-
   public static convertToInt(value: any): number {
     let changedValue: number = value;
     if (!value) {
@@ -491,25 +492,6 @@ export default class Utils {
 
   public static computeSimplePrice(pricePerkWh: number, consumptionWh: number): number {
     return Utils.createDecimal(pricePerkWh).mul(Utils.convertToFloat(consumptionWh)).div(1000).toNumber();
-  }
-
-  public static convertUserToObjectID(user: User | UserToken | string): ObjectID | null {
-    let userID: ObjectID | null = null;
-    // Check Created By
-    if (user) {
-      // Check User Model
-      if (typeof user === 'object' &&
-        user.constructor.name !== 'ObjectID') {
-        // This is the User Model
-        userID = Utils.convertToObjectID(user.id);
-      }
-      // Check String
-      if (typeof user === 'string') {
-        // This is a String
-        userID = Utils.convertToObjectID(user);
-      }
-    }
-    return userID;
   }
 
   public static convertAmpToWatt(chargingStation: ChargingStation, chargePoint: ChargePoint, connectorID = 0, ampValue: number): number {
@@ -554,6 +536,13 @@ export default class Utils {
       return null;
     }
     return chargingStation.connectors.find((connector) => connector && (connector.connectorId === connectorID));
+  }
+
+  public static getLastSeenConnectorFromID(chargingStation: ChargingStation, connectorID: number): Connector {
+    if (!chargingStation.backupConnectors) {
+      return null;
+    }
+    return chargingStation.backupConnectors.find((backupConnector) => backupConnector && (backupConnector.connectorId === connectorID));
   }
 
   public static computeChargingStationTotalAmps(chargingStation: ChargingStation): number {
@@ -1472,6 +1461,10 @@ export default class Utils {
     if (url.includes('kheiron')) {
       return PerformanceRecordGroup.IOTHINK;
     }
+    // Lacroix
+    if (url.includes('esoflink')) {
+      return PerformanceRecordGroup.LACROIX;
+    }
     // EV Database
     if (url.includes('ev-database')) {
       return PerformanceRecordGroup.EV_DATABASE;
@@ -1488,6 +1481,7 @@ export default class Utils {
     module: string; method: string; action: ServerAction|string; group?: PerformanceRecordGroup;
     httpUrl?: string; httpMethod?: string; httpCode?: number; chargingStationID?: string,
   }): PerformanceRecord {
+    const cpuInfo = os.cpus();
     return {
       tenantID: params.tenantID,
       timestamp: new Date(),
@@ -1497,11 +1491,11 @@ export default class Utils {
       process: cluster.isWorker ? 'worker ' + cluster.worker.id.toString() : 'master',
       processMemoryUsage: process.memoryUsage(),
       processCPUUsage: process.cpuUsage(),
-      cpusInfo: os.cpus(),
+      numberOfCPU: cpuInfo.length,
+      modelOfCPU: cpuInfo.length > 0 ? cpuInfo[0].model : '',
       memoryTotalGb: Utils.createDecimal(os.totalmem()).div(Constants.ONE_BILLION).toNumber(),
       memoryFreeGb: Utils.createDecimal(os.freemem()).div(Constants.ONE_BILLION).toNumber(),
       loadAverageLastMin: os.loadavg()[0],
-      networkInterface: os.networkInterfaces(),
       numberOfChargingStations: global.centralSystemJsonServer?.getNumberOfJsonConnections(),
       source: params.source,
       module: params.module,

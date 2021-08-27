@@ -3,9 +3,37 @@
   "type": "object",
   "properties": {
     "ChargingStationID": {
-      "$ref": "chargingstation.json#/definitions/ids"
+      "$ref": "chargingstation.json#/definitions/IDs"
     },
     "Issuer": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithCompany": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithSite": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithSiteArea": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithTag": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithUser": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithCar": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "WithChargingStation": {
       "type": "boolean",
       "sanitize": "mongo"
     },
@@ -13,20 +41,25 @@
       "$ref": "chargingstation.json#/definitions/connectorIDs"
     },
     "SiteAreaID": {
-      "$ref": "common.json#/definitions/ids"
+      "$ref": "common.json#/definitions/IDs"
     },
     "SiteID": {
-      "$ref": "common.json#/definitions/ids"
+      "$ref": "common.json#/definitions/IDs"
     },
     "UserID": {
-      "$ref": "common.json#/definitions/ids"
+      "$ref": "common.json#/definitions/IDs"
     },
     "TagID": {
-      "$ref": "tag.json#/definitions/ids"
+      "type": "string",
+      "sanitize": "mongo"
+    },
+    "VisualTagID": {
+      "type": "string",
+      "sanitize": "mongo"
     },
     "StartDateTime": {
       "type": "string",
-      "format":"date-time",
+      "format": "date-time",
       "sanitize": "mongo"
     },
     "EndDateTime": {
@@ -55,15 +88,22 @@
     "Statistics": {
       "type": "string",
       "sanitize": "mongo",
-      "enum": ["refund", "history"]
+      "enum": [
+        "refund",
+        "history",
+        "ongoing"
+      ]
     },
     "ReportIDs": {
-      "$ref": "common.json#/definitions/ids"
+      "$ref": "common.json#/definitions/IDs"
     },
     "Status": {
       "type": "string",
       "sanitize": "mongo",
-      "enum": ["completed", "active"]
+      "enum": [
+        "completed",
+        "active"
+      ]
     },
     "Search": {
       "$ref": "common.json#/definitions/search"

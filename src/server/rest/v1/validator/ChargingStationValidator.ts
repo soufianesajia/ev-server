@@ -1,10 +1,9 @@
 import { HttpChargingProfilesRequest, HttpChargingStationConnectorRequest, HttpChargingStationGetDiagnosticsRequest, HttpChargingStationGetFirmwareRequest, HttpChargingStationGetOcppConfigurationRequest, HttpChargingStationLimitPowerRequest, HttpChargingStationOcppParametersRequest, HttpChargingStationOcppRequest, HttpChargingStationParamsUpdateRequest, HttpChargingStationRemoteStartRequest, HttpChargingStationRemoteStopRequest, HttpChargingStationRequest, HttpChargingStationResetRequest, HttpChargingStationUnlockConnectorRequest, HttpChargingStationUpdateFirmwareRequest, HttpChargingStationUpdateOcppConfigurationRequest, HttpChargingStationsInErrorRequest, HttpChargingStationsRequest, HttpDownloadQrCodeRequest, HttpTriggerSmartChargingRequest } from '../../../../types/requests/HttpChargingStationRequest';
 
 import { ChargingProfile } from '../../../../types/ChargingProfile';
-import HttpByIDRequest from '../../../../types/requests/HttpByIDRequest';
+import HttpDatabaseRequest from '../../../../types/requests/HttpDatabaseRequest';
 import Schema from '../../../../types/validator/Schema';
 import SchemaValidator from './SchemaValidator';
-import Utils from '../../../../utils/Utils';
 import fs from 'fs';
 import global from '../../../../types/GlobalType';
 
@@ -37,6 +36,7 @@ export default class ChargingStationValidator extends SchemaValidator {
   private chargingStationGetDiagnostics: Schema;
   private chargingStationFirmwareUpdate: Schema;
   private chargingStationAvailabilityChange: Schema;
+  private chargingStationNotificationsGet: Schema;
 
   private constructor() {
     super('ChargingStationValidator');
@@ -67,6 +67,7 @@ export default class ChargingStationValidator extends SchemaValidator {
     this.chargingStationFirmwareUpdate = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-update-firmware.json`, 'utf8'));
     this.chargingStationAvailabilityChange = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/actions/chargingstation-change-availability.json`, 'utf8'));
 
+    this.chargingStationNotificationsGet = JSON.parse(fs.readFileSync(`${global.appRoot}/assets/server/rest/v1/schemas/chargingstation/chargingstation-notifications.json`, 'utf8'));
   }
 
   public static getInstance(): ChargingStationValidator {
@@ -79,12 +80,6 @@ export default class ChargingStationValidator extends SchemaValidator {
   public validateChargingStationsGetReq(data: any): HttpChargingStationsRequest {
     // Validate schema
     this.validate(this.chargingStationsGet, data);
-    if (data.LocLongitude && data.LocLatitude) {
-      data.LocCoordinates = [
-        Utils.convertToFloat(data.LocLongitude),
-        Utils.convertToFloat(data.LocLatitude)
-      ];
-    }
     return data;
   }
 
@@ -94,7 +89,7 @@ export default class ChargingStationValidator extends SchemaValidator {
     return data;
   }
 
-  public validateChargingStationDeleteReq(data: any): HttpByIDRequest {
+  public validateChargingStationDeleteReq(data: any): HttpChargingStationRequest {
     // Validate schema
     this.validate(this.chargingStationDelete, data);
     return data;
@@ -214,6 +209,12 @@ export default class ChargingStationValidator extends SchemaValidator {
     return data;
   }
 
+  public validateChargingStationNotificationsGetReq(data: any): HttpDatabaseRequest {
+    // Validate schema
+    this.validate(this.chargingStationNotificationsGet, data);
+    return data;
+  }
+
   public validateChargingProfilesGetReq(data: any): HttpChargingProfilesRequest {
     // Validate schema
     this.validate(this.chargingProfilesGet, data);
@@ -226,7 +227,7 @@ export default class ChargingStationValidator extends SchemaValidator {
     return data;
   }
 
-  public validateChargingProfileDeleteReq(data: any): HttpByIDRequest {
+  public validateChargingProfileDeleteReq(data: any): HttpChargingStationRequest {
     // Validate schema
     this.validate(this.chargingProfileDelete, data);
     return data;

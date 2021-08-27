@@ -105,7 +105,7 @@ export default class EmspOCPIClient extends OCPIClient {
       };
     }
     // Save
-    await OCPIEndpointStorage.saveOcpiEndpoint(this.tenant.id, this.ocpiEndpoint);
+    await OCPIEndpointStorage.saveOcpiEndpoint(this.tenant, this.ocpiEndpoint);
     const executionDurationSecs = (new Date().getTime() - startTime) / 1000;
     await Logging.logOcpiResult(this.tenant.id, ServerAction.OCPI_PUSH_TOKENS,
       MODULE_NAME, 'sendTokens', result,
@@ -118,7 +118,7 @@ export default class EmspOCPIClient extends OCPIClient {
   }
 
   public async checkAndGetCompany(): Promise<Company> {
-    let company = await CompanyStorage.getCompany(this.tenant.id, this.ocpiEndpoint.id);
+    let company = await CompanyStorage.getCompany(this.tenant, this.ocpiEndpoint.id);
     if (!company) {
       company = {
         id: this.ocpiEndpoint.id,
@@ -126,7 +126,7 @@ export default class EmspOCPIClient extends OCPIClient {
         issuer: false,
         createdOn: new Date()
       } as Company;
-      await CompanyStorage.saveCompany(this.tenant.id, company, false);
+      await CompanyStorage.saveCompany(this.tenant, company, false);
     }
     return company;
   }
@@ -152,7 +152,7 @@ export default class EmspOCPIClient extends OCPIClient {
       locationsUrl = `${locationsUrl}?limit=5`;
     }
     const company = await this.checkAndGetCompany();
-    const sites = await SiteStorage.getSites(this.tenant.id,
+    const sites = await SiteStorage.getSites(this.tenant,
       { companyIDs: [ company.id ] }, Constants.DB_PARAMS_MAX_LIMIT);
     let nextResult = true;
     do {
@@ -225,7 +225,7 @@ export default class EmspOCPIClient extends OCPIClient {
       if (!Utils.isEmptyArray(sessions)) {
         await Promise.map(sessions, async (session: OCPISession) => {
           try {
-            await OCPIUtilsService.updateTransaction(this.tenant.id, session);
+            await OCPIUtilsService.updateTransaction(this.tenant, session);
             result.success++;
           } catch (error) {
             result.failure++;
@@ -283,7 +283,7 @@ export default class EmspOCPIClient extends OCPIClient {
       if (!Utils.isEmptyArray(cdrs)) {
         await Promise.map(cdrs, async (cdr: OCPICdr) => {
           try {
-            await OCPIUtilsService.processCdr(this.tenant.id, cdr);
+            await OCPIUtilsService.processCdr(this.tenant, cdr);
             result.success++;
           } catch (error) {
             result.failure++;
@@ -339,14 +339,14 @@ export default class EmspOCPIClient extends OCPIClient {
           Utils.convertToFloat(location.coordinates.latitude)
         ];
       }
-      site.id = await SiteStorage.saveSite(this.tenant.id, site, false);
+      site.id = await SiteStorage.saveSite(this.tenant, site, false);
       // Push the Site then it can be retrieve in the next round
       existingSites.push(site);
     }
     const locationName = site.name + Constants.OCPI_SEPARATOR + location.id;
     // Handle Site Area
-    const siteAreas = await SiteAreaStorage.getSiteAreas(this.tenant.id,
-      { siteIDs: [site.id], name: locationName, issuer: false },
+    const siteAreas = await SiteAreaStorage.getSiteAreas(this.tenant,
+      { siteIDs: [site.id], name: locationName, issuer: false, withSite: true },
       Constants.DB_PARAMS_SINGLE_RECORD);
     let siteArea = !Utils.isEmptyArray(siteAreas.result) ? siteAreas.result[0] : null;
     if (!siteArea) {
@@ -371,14 +371,14 @@ export default class EmspOCPIClient extends OCPIClient {
           Utils.convertToFloat(location.coordinates.latitude)
         ];
       }
-      siteArea.id = await SiteAreaStorage.saveSiteArea(this.tenant.id, siteArea, false);
+      siteArea.id = await SiteAreaStorage.saveSiteArea(this.tenant, siteArea, false);
     }
     if (!Utils.isEmptyArray(location.evses)) {
       for (const evse of location.evses) {
         if (!evse.uid) {
           throw new BackendError({
             action: ServerAction.OCPI_PULL_LOCATIONS,
-            message: `Missing Charging Station EVSE UID in Location ID '${location.id}'`,
+            message: `Missing Charging Station EVSE UID in Location '${location.name}' with ID '${location.id}'`,
             module: MODULE_NAME, method: 'processLocation',
             detailedMessages:  { evse, location }
           });
@@ -386,14 +386,14 @@ export default class EmspOCPIClient extends OCPIClient {
         if (evse.status === OCPIEvseStatus.REMOVED) {
           // Get existing charging station
           const currentChargingStation = await ChargingStationStorage.getChargingStationByOcpiLocationUid(
-            this.tenant.id, location.id, evse.uid, ['id']
+            this.tenant, location.id, evse.uid, ['id']
           );
           if (currentChargingStation) {
-            await ChargingStationStorage.deleteChargingStation(this.tenant.id, currentChargingStation.id);
+            await ChargingStationStorage.deleteChargingStation(this.tenant, currentChargingStation.id);
             await Logging.logDebug({
               tenantID: this.tenant.id,
               action: ServerAction.OCPI_PULL_LOCATIONS,
-              message: `Removed Charging Station EVSE UID '${evse.uid}' in Location ID '${location.id}'`,
+              message: `Removed Charging Station EVSE UID '${evse.uid}' in Location '${location.name}' with ID '${location.id}'`,
               module: MODULE_NAME, method: 'processLocation',
               detailedMessages: { evse, location }
             });
@@ -402,9 +402,11 @@ export default class EmspOCPIClient extends OCPIClient {
         }
         // Update Charging Station
         const chargingStation = OCPIUtilsService.convertEvseToChargingStation(evse, location);
-        chargingStation.siteAreaID = siteArea.id;
+        chargingStation.companyID = siteArea.site?.companyID;
         chargingStation.siteID = siteArea.siteID;
-        await ChargingStationStorage.saveChargingStation(this.tenant.id, chargingStation);
+        chargingStation.siteAreaID = siteArea.id;
+        await ChargingStationStorage.saveChargingStation(this.tenant, chargingStation);
+        await ChargingStationStorage.saveChargingStationOcpiData(this.tenant, chargingStation.id, chargingStation.ocpiData);
         await Logging.logDebug({
           tenantID: this.tenant.id,
           action: ServerAction.OCPI_PULL_LOCATIONS,
@@ -437,16 +439,16 @@ export default class EmspOCPIClient extends OCPIClient {
     return true;
   }
 
-  public async remoteStartSession(chargingStation: ChargingStation, connectorId: number, tagId: string): Promise<OCPICommandResponse> {
+  public async remoteStartSession(chargingStation: ChargingStation, connectorID: number, tagID: string): Promise<OCPICommandResponse> {
     // Get command endpoint url
     const commandUrl = this.getEndpointUrl('commands', ServerAction.OCPI_START_SESSION) + '/' + OCPICommandType.START_SESSION;
     const callbackUrl = this.getLocalEndpointUrl('commands') + '/' + OCPICommandType.START_SESSION;
-    const tag = await TagStorage.getTag(this.tenant.id, tagId, { withUser: true });
+    const tag = await TagStorage.getTag(this.tenant, tagID, { withUser: true });
     if (!tag || !tag.issuer || !tag.active) {
       throw new BackendError({
         action: ServerAction.OCPI_START_SESSION,
         source: chargingStation.id,
-        message: `Connector ID '${connectorId}' > OCPI Remote Start Session is not available for Tag ID '${tagId}'`,
+        message: `${Utils.buildConnectorInfo(connectorID)} OCPI Remote Start Session is not available for Tag ID '${tagID}'`,
         module: MODULE_NAME, method: 'remoteStartSession',
         detailedMessages: { tag: tag }
       });
@@ -455,7 +457,7 @@ export default class EmspOCPIClient extends OCPIClient {
       throw new BackendError({
         action: ServerAction.OCPI_START_SESSION,
         source: chargingStation.id,
-        message: `OCPI Remote Start Session is not available for user with Tag ID '${tagId}'`,
+        message: `${Utils.buildConnectorInfo(connectorID)} OCPI Remote Start Session is not available for user with Tag ID '${tagID}'`,
         module: MODULE_NAME, method: 'remoteStartSession',
         detailedMessages: { user: tag.user }
       });
@@ -464,7 +466,7 @@ export default class EmspOCPIClient extends OCPIClient {
       uid: tag.id,
       type: OCPIUtils.getOCPITokenTypeFromID(tag.id),
       auth_id: tag.user.id,
-      visual_number: tag.user.id,
+      visual_number: tag.visualID,
       issuer: this.tenant.name,
       valid: true,
       whitelist: OCPITokenWhitelist.ALLOWED_OFFLINE,
@@ -493,8 +495,9 @@ export default class EmspOCPIClient extends OCPIClient {
     await Logging.logDebug({
       tenantID: this.tenant.id,
       action: ServerAction.OCPI_START_SESSION,
+      siteID: chargingStation.siteID,
       source: chargingStation.id,
-      message: `Connector ID '${connectorId}' > OCPI Remote Start session response status ${response.status}`,
+      message: `${Utils.buildConnectorInfo(connectorID)} OCPI Remote Start session response status '${response.status}'`,
       module: MODULE_NAME, method: 'remoteStartSession',
       detailedMessages: { remoteStart, response: response.data }
     });
@@ -506,14 +509,32 @@ export default class EmspOCPIClient extends OCPIClient {
     const commandUrl = this.getEndpointUrl('commands', ServerAction.OCPI_START_SESSION) + '/' + OCPICommandType.STOP_SESSION;
     const callbackUrl = this.getLocalEndpointUrl('commands') + '/' + OCPICommandType.STOP_SESSION;
     // Get transaction
-    const transaction = await TransactionStorage.getTransaction(this.tenant.id, transactionId);
-    if (!transaction || !transaction.ocpiData || !transaction.ocpiData.session || transaction.issuer) {
+    const transaction = await TransactionStorage.getTransaction(this.tenant, transactionId);
+    if (!transaction) {
       throw new BackendError({
         action: ServerAction.OCPI_START_SESSION,
-        source: transaction ? transaction.chargeBoxID : null,
-        message: `OCPI Remote Stop Session is not available for the Session ID '${transactionId}'`,
+        source: transaction?.chargeBoxID,
+        message: `Transaction ID '${transactionId}' does not exist`,
         module: MODULE_NAME, method: 'remoteStopSession',
-        detailedMessages: { transaction: transaction }
+        detailedMessages: { transaction }
+      });
+    }
+    if (!transaction.issuer) {
+      throw new BackendError({
+        action: ServerAction.OCPI_START_SESSION,
+        source: transaction?.chargeBoxID,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} Transaction belongs to an external organization`,
+        module: MODULE_NAME, method: 'remoteStopSession',
+        detailedMessages: { transaction }
+      });
+    }
+    if (!transaction.ocpiData?.session) {
+      throw new BackendError({
+        action: ServerAction.OCPI_START_SESSION,
+        source: transaction?.chargeBoxID,
+        message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} No OCPI Session data`,
+        module: MODULE_NAME, method: 'remoteStopSession',
+        detailedMessages: { transaction }
       });
     }
     const payload: OCPIStopSession = {
@@ -533,8 +554,9 @@ export default class EmspOCPIClient extends OCPIClient {
     await Logging.logDebug({
       tenantID: this.tenant.id,
       action: ServerAction.OCPI_STOP_SESSION,
+      siteID: transaction.siteID,
       source: transaction.chargeBoxID,
-      message: `Connector ID '${transaction.connectorId}' > OCPI Remote Stop Session ID '${transactionId}' response status ${response.status}`,
+      message: `${Utils.buildConnectorInfo(transaction.connectorId, transaction.id)} OCPI Remote Stop response status '${response.status}'`,
       module: MODULE_NAME, method: 'remoteStopSession',
       detailedMessages: { response: response.data }
     });

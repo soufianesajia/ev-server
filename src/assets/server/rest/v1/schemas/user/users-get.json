@@ -1,0 +1,52 @@
+{
+  "title": "Get Users",
+  "type": "object",
+  "definitions": {
+    "Issuer": {
+      "type": "boolean",
+      "sanitize": "mongo"
+    },
+    "SiteID": {
+      "$ref": "common.json#/definitions/IDs"
+    },
+    "UserID": {
+      "$ref": "user.json#/definitions/IDs"
+    },
+    "Roles": {
+      "type": "string",
+      "sanitize": "mongo",
+      "pattern": "^[SABD](\\|[SABD])*$"
+    },
+    "Status": {
+      "type": "string",
+      "sanitize": "mongo",
+      "pattern": "^[PAIBL](\\|[PAIBL])*$"
+    },
+    "ExcludeSiteID": {
+      "$ref": "common.json#/definitions/IDs"
+    },
+    "VisualTagID": {
+      "type": "string",
+      "sanitize": "mongo"
+    },
+    "Search": {
+      "$ref": "common.json#/definitions/search"
+    },
+    "SortFields": {
+      "$ref": "common.json#/definitions/sortFields"
+    },
+    "Limit": {
+      "$ref": "common.json#/definitions/limit"
+    },
+    "Skip": {
+      "$ref": "common.json#/definitions/skip"
+    },
+    "OnlyRecordCount": {
+      "$ref": "common.json#/definitions/onlyRecordCount"
+    },
+    "ProjectFields": {
+      "$ref": "common.json#/definitions/projectFields"
+    }
+  },
+  "required": []
+}

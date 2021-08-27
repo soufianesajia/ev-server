@@ -14,14 +14,24 @@ chai.use(chaiSubset);
 class TestData {
   public newTenant: any;
   public superAdminCentralService: any;
+  public tenantsToCleanUp: any[];
 }
 
 const testData: TestData = new TestData();
 
-describe('Tenant tests', function() {
+describe('Tenant', function() {
   this.timeout(30000);
   before(async () => {
     testData.superAdminCentralService = new CentralServerService('');
+    testData.tenantsToCleanUp = [];
+  });
+
+  after(async () => {
+    // Final clean up at the end
+    for (const tenant of testData.tenantsToCleanUp) {
+      await CentralServerService.defaultInstance.deleteEntity(
+        CentralServerService.defaultInstance.tenantApi, tenant);
+    }
   });
 
   describe('Success cases', () => {
@@ -79,8 +89,8 @@ describe('Tenant tests', function() {
           'type': null
         }
       };
-      await CentralServerService.defaultInstance.createEntity(
-        CentralServerService.defaultInstance.tenantApi, tenant);
+      testData.tenantsToCleanUp.push(await CentralServerService.defaultInstance.createEntity(
+        CentralServerService.defaultInstance.tenantApi, tenant));
     });
 
     it('Should find the created tenant by id', async () => {
@@ -130,13 +140,6 @@ describe('Tenant tests', function() {
   });
 
   describe('Error cases', () => {
-    it('Should not be possible to read an empty tenant', async () => {
-      // Exec
-      const response = await CentralServerService.defaultInstance.getEntityById(
-        CentralServerService.defaultInstance.tenantApi, { id: '' }, false);
-      // Check
-      expect(response.status).to.equal(StatusCodes.INTERNAL_SERVER_ERROR);
-    });
 
     it('Should not be possible to read an invalid tenant', async () => {
       // Exec
@@ -258,16 +261,14 @@ describe('Tenant tests', function() {
       let tenant: Tenant = Factory.tenant.build();
       const tenantSubdomain = tenant.subdomain;
       // Call
-      let response = await CentralServerService.defaultInstance.createEntity(
-        CentralServerService.defaultInstance.tenantApi, tenant, false);
-      // Check
-      expect(response.status).to.equal(StatusCodes.OK);
+      testData.tenantsToCleanUp.push(await CentralServerService.defaultInstance.createEntity(
+        CentralServerService.defaultInstance.tenantApi, tenant));
 
       // Create
       tenant = Factory.tenant.build();
       tenant.subdomain = tenantSubdomain;
       // Call
-      response = await CentralServerService.defaultInstance.createEntity(
+      const response = await CentralServerService.defaultInstance.createEntity(
         CentralServerService.defaultInstance.tenantApi, tenant, false);
       // Check
       expect(response.status).to.equal(HTTPError.TENANT_ALREADY_EXIST);

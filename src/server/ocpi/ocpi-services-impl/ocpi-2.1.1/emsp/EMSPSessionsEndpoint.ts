@@ -53,7 +53,7 @@ export default class EMSPSessionsEndpoint extends AbstractEndpoint {
         ocpiError: OCPIStatusCode.CODE_2001_INVALID_PARAMETER_ERROR
       });
     }
-    const transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant.id, sessionId);
+    const transaction: Transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant, sessionId);
     if (!transaction) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -98,7 +98,7 @@ export default class EMSPSessionsEndpoint extends AbstractEndpoint {
         ocpiError: OCPIStatusCode.CODE_2001_INVALID_PARAMETER_ERROR
       });
     }
-    await OCPIUtilsService.updateTransaction(tenant.id, session);
+    await OCPIUtilsService.updateTransaction(tenant, session);
     return OCPIUtils.success({});
   }
 
@@ -120,7 +120,7 @@ export default class EMSPSessionsEndpoint extends AbstractEndpoint {
         ocpiError: OCPIStatusCode.CODE_2001_INVALID_PARAMETER_ERROR
       });
     }
-    const transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant.id, sessionId);
+    const transaction = await TransactionStorage.getOCPITransactionBySessionID(tenant, sessionId);
     if (!transaction) {
       throw new AppError({
         source: Constants.CENTRAL_SERVER,
@@ -164,7 +164,7 @@ export default class EMSPSessionsEndpoint extends AbstractEndpoint {
         ocpiError: OCPIStatusCode.CODE_2002_NOT_ENOUGH_INFORMATION_ERROR
       });
     }
-    await OCPIUtilsService.updateTransaction(tenant.id, transaction.ocpiData.session);
+    await OCPIUtilsService.updateTransaction(tenant, transaction.ocpiData.session);
     return OCPIUtils.success({});
   }
 }

@@ -7,11 +7,17 @@ import UserToken from '../types/UserToken';
 export default abstract class DynamicAuthorizationFilter {
   protected tenant: Tenant;
   protected userToken: UserToken;
+  protected negateFilter: boolean;
   private dataSources: Map<DynamicAuthorizationDataSourceName, DynamicAuthorizationDataSource<DynamicAuthorizationDataSourceData>> = new Map();
 
-  public constructor(tenant: Tenant, user: UserToken) {
+  public constructor(tenant: Tenant, user: UserToken, negateFilter: boolean) {
     this.tenant = tenant;
     this.userToken = user;
+    this.negateFilter = negateFilter;
+  }
+
+  public isNegateFilter(): boolean {
+    return this.negateFilter;
   }
 
   public getDataSources(): DynamicAuthorizationDataSource<DynamicAuthorizationDataSourceData>[] {
@@ -27,8 +33,8 @@ export default abstract class DynamicAuthorizationFilter {
     this.dataSources.set(dataSourceName, dataSource);
   }
 
-  public abstract processFilter(
-    authorizationFilters: AuthorizationFilter, extraFilters: Record<string, any>): void;
+  public abstract processFilter(authorizationFilters: AuthorizationFilter,
+    extraFilters: Record<string, any>): void;
 
   public abstract getApplicableEntities(): Entity[];
 

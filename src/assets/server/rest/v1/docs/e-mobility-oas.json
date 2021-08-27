@@ -39,6 +39,10 @@
     {
       "name": "Tags",
       "description": "Tags API"
+    },
+    {
+      "name": "Loggings",
+      "description": "Loggings API"
     }
   ],
   "paths": {
@@ -321,7 +325,7 @@
                   "email",
                   "name",
                   "firstName",
-                  "passwords",
+                  "password",
                   "acceptEula",
                   "tenant",
                   "captcha"
@@ -339,18 +343,9 @@
                     "type": "string",
                     "example": "User"
                   },
-                  "passwords": {
-                    "type": "object",
-                    "properties": {
-                      "password": {
-                        "type": "string",
-                        "example": "DeM*Us$r1"
-                      },
-                      "repeatPassword": {
-                        "type": "string",
-                        "example": "DeM*Us$r1"
-                      }
-                    }
+                  "password": {
+                    "type": "string",
+                    "example": "DeM*Us$r1"
                   },
                   "acceptEula": {
                     "type": "boolean",
@@ -428,6 +423,9 @@
                     "type": "string",
                     "example": "demo.demo@sap.com"
                   },
+                  "password": {
+                    "type": "string"
+                  },
                   "captcha": {
                     "type": "string",
                     "example": "03AGdBq26Ca8rdqn0-odDV18kJCLnVytzGPXVPyW811IY4pqyQuak-o59MZlYfUIVS-ToLBiL4o7fBfPPvmkAhQLKoMXtqitKxRTG016wmGbFLvZWnOSkJKreB1Kx6n3dB7uYd302UVyVpJJ0BGFcmXWnWZmGnR3ZJC8IE1r7oVohcYVLttnKXtuhJwg5IdHe0HleYzOjxCBw9FnCJhVoSmaPn6FeVjWC9d8vSDwBq-18dA_cm6CQb7BhZm6LXWhMdW1_e_5DcSs1koj_vn3FGB7UQESsPp81WBfr6msCNiddNc1D4MRfF4wXeimJ1wplqoGOmMmI2Y_i-120grLrjkfzBNgDPQPWvfpUjeyW1f_T-5SaObYpUFEEZ4YW6Xt2revAWMmZ6i9_QOWWUcukaZU3jr_MzR1YIMscKrnBP3Zhl45zLXOY-0Bi28z6XxsMqqSHE8lY_C8B-7M-X3PNc_293qtrEnE2rhG9PU-RdFJG4dqBcwU6YfZJwwyXDWG7eyNG8iJoBDgCWrbib2jLKTmuwWCowApAoeA"
@@ -451,7 +449,9 @@
                   "summary": "Validate password reset",
                   "value": {
                     "email": "demo.demo@sap.com",
+                    "captcha": "03AGdBq26Ca8rdqn0-odDV18kJCLnVytzGPXVPyW811IY4pqyQuak-o59MZlYfUIVS-ToLBiL4o7fBfPPvmkAhQLKoMXtqitKxRTG016wmGbFLvZWnOSkJKreB1Kx6n3dB7uYd302UVyVpJJ0BGFcmXWnWZmGnR3ZJC8IE1r7oVohcYVLttnKXtuhJwg5IdHe0HleYzOjxCBw9FnCJhVoSmaPn6FeVjWC9d8vSDwBq-18dA_cm6CQb7BhZm6LXWhMdW1_e_5DcSs1koj_vn3FGB7UQESsPp81WBfr6msCNiddNc1D4MRfF4wXeimJ1wplqoGOmMmI2Y_i-120grLrjkfzBNgDPQPWvfpUjeyW1f_T-5SaObYpUFEEZ4YW6Xt2revAWMmZ6i9_QOWWUcukaZU3jr_MzR1YIMscKrnBP3Zhl45zLXOY-0Bi28z6XxsMqqSHE8lY_C8B-7M-X3PNc_293qtrEnE2rhG9PU-RdFJG4dqBcwU6YfZJwwyXDWG7eyNG8iJoBDgCWrbib2jLKTmuwWCowApAoeA",
                     "hash": "dcff1ec7-cecb-4c2f-99da-47aeb1f83509",
+                    "password": "Azerty123?",
                     "tenant": "slf"
                   }
                 }
@@ -696,7 +696,10 @@
               "type": "string",
               "enum": [
                 "completed",
-                "active"
+                "active",
+                "to-refund",
+                "in-error",
+                "not-assigned-to-user"
               ]
             }
           },
@@ -713,22 +716,46 @@
             "$ref": "#/components/parameters/EndDateTime"
           },
           {
+            "$ref": "#/components/parameters/WithChargingStation"
+          },
+          {
             "$ref": "#/components/parameters/ChargingStationIDs"
           },
           {
             "$ref": "#/components/parameters/ConnectorIDs"
           },
           {
+            "$ref": "#/components/parameters/WithCar"
+          },
+          {
+            "$ref": "#/components/parameters/WithUser"
+          },
+          {
             "$ref": "#/components/parameters/UserIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithTag"
           },
           {
             "$ref": "#/components/parameters/TagIDs"
           },
           {
+            "$ref": "#/components/parameters/VisualTagIDs"
+          },
+          {
             "$ref": "#/components/parameters/SiteIDs"
           },
           {
+            "$ref": "#/components/parameters/WithSite"
+          },
+          {
             "$ref": "#/components/parameters/SiteAreaIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithSiteArea"
+          },
+          {
+            "$ref": "#/components/parameters/WithCompany"
           },
           {
             "$ref": "#/components/parameters/InactivityStatuses"
@@ -872,6 +899,57 @@
             "$ref": "#/components/responses/BackendError"
           }
         }
+      },
+      "delete": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Delete several Transactions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "transactionIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction deletion result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success",
+                  "inSuccess": 42,
+                  "inError": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
       }
     },
     "/api/transactions/{id}": {
@@ -885,6 +963,15 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/transactionID"
+          },
+          {
+            "$ref": "#/components/parameters/WithCar"
+          },
+          {
+            "$ref": "#/components/parameters/WithUser"
+          },
+          {
+            "$ref": "#/components/parameters/WithTag"
           }
         ],
         "tags": [
@@ -942,6 +1029,227 @@
             "$ref": "#/components/responses/BackendError"
           }
         }
+      },
+      "delete": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Delete a Transaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/transactionID"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction deletion result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success",
+                  "inSuccess": 1,
+                  "inError": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}/ocpi/cdr": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Push Transaction CDR",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/transactionID"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction CDR pushed successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "580": {
+            "description": "The transaction belongs to an external organization"
+          },
+          "581": {
+            "description": "The transaction has no OCPI or OICP session data"
+          },
+          "582": {
+            "description": "The CDR of the transaction has already been pushed"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}/ocpi/cdr/action/export": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WithUser"
+          },
+          {
+            "$ref": "#/components/parameters/WithCar"
+          },
+          {
+            "$ref": "#/components/parameters/WithTag"
+          }
+        ],
+        "description": "Export Transaction CDR",
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported Transaction CDR",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "###",
+                  "start_date_time": "2020-06-30T14:08:50.000Z",
+                  "stop_date_time": "2020-06-30T14:33:56.000Z",
+                  "total_parking_time": 0,
+                  "total_time": 1506,
+                  "total_energy": 4.502,
+                  "total_cost": 0.72,
+                  "currency": "EUR",
+                  "auth_id": "###",
+                  "authorization_id": "###",
+                  "auth_method": "AUTH_REQUEST",
+                  "location": {
+                    "id": "###",
+                    "name": "###",
+                    "address": "###",
+                    "city": "###",
+                    "postal_code": "###",
+                    "country": "###",
+                    "coordinates": {
+                      "latitude": "###",
+                      "longitude": "###"
+                    },
+                    "type": "UNKNOWN",
+                    "evses": [
+                      {
+                        "uid": "###",
+                        "evse_id": "###",
+                        "status": "BLOCKED",
+                        "capabilities": [
+                          "REMOTE_START_STOP_CAPABLE",
+                          "RFID_READER"
+                        ],
+                        "connectors": [
+                          {
+                            "id": "###",
+                            "standard": "IEC_62196_T2",
+                            "format": "SOCKET",
+                            "voltage": 230,
+                            "amperage": 96,
+                            "power_type": "AC_3_PHASE",
+                            "last_updated": "2020-06-30T14:08:47.621Z"
+                          }
+                        ],
+                        "coordinates": {
+                          "latitude": "###",
+                          "longitude": "###"
+                        },
+                        "last_updated": "2020-06-30T14:08:47.621Z"
+                      }
+                    ],
+                    "last_updated": "2020-05-06T09:18:10.227Z"
+                  },
+                  "charging_periods": [
+                    {
+                      "start_date_time": "2020-06-30T14:08:50.000Z",
+                      "dimensions": [
+                        {
+                          "type": "ENERGY",
+                          "volume": 0.108
+                        },
+                        {
+                          "type": "MAX_CURRENT",
+                          "volume": 96
+                        }
+                      ]
+                    },
+                    {
+                      "start_date_time": "2020-06-30T14:10:50.000Z",
+                      "dimensions": [
+                        {
+                          "type": "ENERGY",
+                          "volume": 0.182
+                        },
+                        {
+                          "type": "MAX_CURRENT",
+                          "volume": 96
+                        }
+                      ]
+                    }
+                  ],
+                  "last_updated": "2020-06-30T14:33:56.000Z"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "580": {
+            "description": "The transaction belongs to an external organization"
+          },
+          "581": {
+            "description": "The transaction has no OCPI or OICP session data"
+          },
+          "582": {
+            "description": "The CDR of the transaction has already been pushed"
+          }
+        }
       }
     },
     "/api/transactions/{id}/consumptions": {
@@ -963,6 +1271,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "$ref": "#/components/parameters/WithCar"
+          },
+          {
+            "$ref": "#/components/parameters/WithUser"
+          },
+          {
+            "$ref": "#/components/parameters/WithTag"
           }
         ],
         "tags": [
@@ -1043,6 +1360,547 @@
         }
       }
     },
+    "/api/transactions/{id}/consumptions/rebuild": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Rebuild a Transaction consumptions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/transactionID"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Consumptions rebuild result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success",
+                  "nbrOfConsumptions": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/{id}/stop/soft": {
+      "put": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Stop a Transaction",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/transactionID"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction stopped successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/action/refund": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Refund Transactions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "transactionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transactions refund result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success",
+                  "inSuccess": 42,
+                  "inError": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "552": {
+            "description": "No Refund valid connection found"
+          }
+        }
+      }
+    },
+    "/api/transactions/action/refund/export": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Export Transactions to refund",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Issuer"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/StartDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/EndDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/WithChargingStation"
+          },
+          {
+            "$ref": "#/components/parameters/ChargingStationIDs"
+          },
+          {
+            "$ref": "#/components/parameters/ConnectorIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithCar"
+          },
+          {
+            "$ref": "#/components/parameters/WithUser"
+          },
+          {
+            "$ref": "#/components/parameters/UserIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithTag"
+          },
+          {
+            "$ref": "#/components/parameters/TagIDs"
+          },
+          {
+            "$ref": "#/components/parameters/VisualTagIDs"
+          },
+          {
+            "$ref": "#/components/parameters/SiteIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithSite"
+          },
+          {
+            "$ref": "#/components/parameters/SiteAreaIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithSiteArea"
+          },
+          {
+            "$ref": "#/components/parameters/WithCompany"
+          },
+          {
+            "$ref": "#/components/parameters/InactivityStatuses"
+          },
+          {
+            "$ref": "#/components/parameters/TransactionStatistics"
+          },
+          {
+            "$ref": "#/components/parameters/RefundStatus"
+          },
+          {
+            "in": "query",
+            "name": "MinimalPrice",
+            "description": "Transactions minimal price",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ReportIDs",
+            "description": "Pipe separated report IDs",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/OnlyRecordCount"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported Transactions to refund",
+            "content": {
+              "text/csv": {
+                "example": "id,chargingStationID,connectorID,companyName,siteName,siteAreaName,userID,user,tagID,visualTagID,tagDescription,timezone,startDate,startTime,endDate,endTime,totalConsumptionkWh,totalDurationMins,totalInactivityMins,price,priceUnit\n123456789,\"###\",2,,,,\"\",\"\",\"###\",,\"\",\"Europe/Paris\",\"2021-07-07\",\"10:08:25\",\"2021-07-07\",\"10:08:32\",0,0.11,0.11,0,\"EUR\""
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/action/refund/synchronize": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Synchronize refunded Transactions",
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Synchronized refunded transactions successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/action/refund/reports": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Retrieve Transactions refund reports",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteAreaIDs"
+          },
+          {
+            "$ref": "#/components/parameters/SiteIDs"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/OnlyRecordCount"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrieved Transactions refund reports",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "result": [
+                    {
+                      "id": "###",
+                      "user": {
+                        "id": "###",
+                        "name": "###",
+                        "firstName": "###",
+                        "email": "###"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/action/assign": {
+      "put": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Assign Transactions to a user",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "TagID",
+            "description": "Tag ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "UserID",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transactions successfully assigned",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/transactions/action/export": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Export Transactions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Issuer"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/StartDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/EndDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/WithChargingStation"
+          },
+          {
+            "$ref": "#/components/parameters/ChargingStationIDs"
+          },
+          {
+            "$ref": "#/components/parameters/ConnectorIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithCar"
+          },
+          {
+            "$ref": "#/components/parameters/WithUser"
+          },
+          {
+            "$ref": "#/components/parameters/UserIDs"
+          },
+          {
+            "$ref": "#/components/parameters/TagIDs"
+          },
+          {
+            "$ref": "#/components/parameters/VisualTagIDs"
+          },
+          {
+            "$ref": "#/components/parameters/SiteIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithSite"
+          },
+          {
+            "$ref": "#/components/parameters/SiteAreaIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithSiteArea"
+          },
+          {
+            "$ref": "#/components/parameters/WithCompany"
+          },
+          {
+            "$ref": "#/components/parameters/InactivityStatuses"
+          },
+          {
+            "$ref": "#/components/parameters/TransactionStatistics"
+          },
+          {
+            "$ref": "#/components/parameters/RefundStatus"
+          },
+          {
+            "in": "query",
+            "name": "MinimalPrice",
+            "description": "Transactions minimal price",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ReportIDs",
+            "description": "Pipe separated report IDs",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/OnlyRecordCount"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Transactions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Transactions successfully exported",
+            "content": {
+              "text/csv": {
+                "example": "id,chargingStationID,connectorID,companyName,siteName,siteAreaName,userID,user,tagID,visualTagID,tagDescription,timezone,startDate,startTime,endDate,endTime,totalConsumptionkWh,totalDurationMins,totalInactivityMins,price,priceUnit\n1155141205,\"###\",1,,,,\"\",\"\",\"###\",\"###\",\"###\",\"Europe/Paris\",\"2021-07-07\",\"16:21:59\",\"2021-07-07\",\"16:22:27\",0,0.46,0.46,0,\"EUR\""
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
     "/api/charging-stations": {
       "get": {
         "security": [
@@ -1069,6 +1927,9 @@
           },
           {
             "$ref": "#/components/parameters/SiteAreaIDs"
+          },
+          {
+            "$ref": "#/components/parameters/WithSiteArea"
           },
           {
             "$ref": "#/components/parameters/ConnectorStatuses"
@@ -1542,6 +2403,95 @@
         }
       }
     },
+    "/api/charging-stations/{id}/data/transfer": {
+      "put": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Trigger Data Transfer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/chargingStationID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "vendorId": {
+                        "type": "string",
+                        "description": "Mandatory. Vendor of the charging station.",
+                        "example": ""
+                      },
+                      "messageId": {
+                        "type": "string",
+                        "description": "Optional. Message to send.",
+                        "example": ""
+                      },
+                      "data": {
+                        "type": "string",
+                        "description": "Optional. Data to send.",
+                        "example": ""
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Charging Stations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Data Transfer has been successfully executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "examples": {
+                  "accepted": {
+                    "summary": "Accepted",
+                    "value": {
+                      "status": "Accepted"
+                    }
+                  },
+                  "rejected": {
+                    "summary": "Rejected",
+                    "value": {
+                      "status": "Rejected"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
     "/api/charging-stations/{id}/configuration/retrieve": {
       "put": {
         "security": [
@@ -1728,13 +2678,22 @@
                     "type": "string",
                     "example": ""
                   },
+                  "userID": {
+                    "type": "string",
+                    "example": ""
+                  },
                   "args": {
                     "type": "object",
                     "properties": {
                       "tagID": {
                         "type": "string",
-                        "description": "Required. The identifier that Charge Point must use to start a transaction.",
+                        "description": "The identifier that Charge Point must use to start a transaction.",
                         "example": "123456"
+                      },
+                      "visualTagID": {
+                        "type": "string",
+                        "description": "The identifier that Charge Point must use to start a transaction.",
+                        "example": "123456-123456"
                       },
                       "connectorId": {
                         "type": "integer",
@@ -1742,10 +2701,7 @@
                         "minimum": 1,
                         "example": 1
                       }
-                    },
-                    "required": [
-                      "tagID"
-                    ]
+                    }
                   }
                 },
                 "required": [
@@ -2854,13 +3810,10 @@
             }
           },
           {
-            "in": "query",
-            "name": "TagID",
-            "description": "Pipe separated Tag IDs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/TagIDs"
+          },
+          {
+            "$ref": "#/components/parameters/VisualTagIDs"
           },
           {
             "in": "query",
@@ -3144,7 +4097,7 @@
             "description": "Return Charging Station CSV file",
             "content": {
               "text/csv": {
-                "example": "Name\tCreated On\tNumber of Connectors\tSite Area\tLatitude\tLongitude\tCharge Point S/N\tModel\tCharge Box S/N\tVendor\tFirmware\tVersion\tOCPP Version\tOCPP Protocol\tLast Seen\tLast Reboot\tMaximum Power (Watt)\tPower Limit\tUnit\n####\t####\t2\t####\t49\t-0.3\t####\tMONOBLOCK\t####\t####\t3\t1.6\tjson\t12/20/2020 11:54 PM\t12/09/2020 7:00 PM\t44160\tA"
+                "example": "Name,Created On,Number of Connectors,Site Area,Latitude,Longitude,Charge Point S/N,Model,Charge Box S/N,Vendor,Firmware,Version,OCPP Version,OCPP Protocol,Last Seen,Last Reboot,Maximum Power (Watt),Power Limit,Unit,####,####,2,####,49,-0.3,####,MONOBLOCK,####,####,3,1.6,json,12/20/2020 11:54 PM,12/09/2020 7:00 PM,44160,A"
               }
             }
           },
@@ -3259,6 +4212,178 @@
           },
           "500": {
             "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/charging-stations/notifications/boot": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Get Charging Stations boot notifications",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          }
+        ],
+        "tags": [
+          "Charging Stations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Return the boot notification list",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "result": [
+                    {
+                      "_id": "###",
+                      "chargeBoxID": "###",
+                      "chargePointVendor": "###",
+                      "chargePointModel": "###",
+                      "chargePointSerialNumber": "###",
+                      "chargeBoxSerialNumber": null,
+                      "firmwareVersion": "4.3.0.25",
+                      "ocppVersion": "1.6",
+                      "ocppProtocol": "json",
+                      "endpoint": "###",
+                      "timestamp": "2020-11-03T09:56:02.908Z",
+                      "createdBy": null,
+                      "lastChangedBy": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/charging-stations/notifications/status": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Get Charging Stations status notifications",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          }
+        ],
+        "tags": [
+          "Charging Stations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Return the status notification list",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "result": [
+                    {
+                      "_id": "####",
+                      "chargeBoxID": "####",
+                      "connectorId": 2,
+                      "timestamp": "2019-03-25T10:45:42.000Z",
+                      "status": "####",
+                      "errorCode": "####",
+                      "info": null,
+                      "vendorId": null,
+                      "vendorErrorCode": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/assets/{id}/consumption": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Push latest asset consumption",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/assetID"
+          }
+        ],
+        "tags": [
+          "Assets"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetConsumption"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset consumption created successfully",
+            "content": {
+              "application/json": {
+                "example": {
+                  "consumption": "###",
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "description": "Asset does not exist"
           }
         }
       }
@@ -3630,67 +4755,13 @@
             "$ref": "#/components/parameters/UserIDs"
           },
           {
-            "in": "query",
-            "name": "Role",
-            "required": false,
-            "description": "Role attribute",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "S",
-                "A",
-                "B",
-                "D"
-              ]
-            }
+            "$ref": "#/components/parameters/UserRoles"
           },
           {
-            "in": "query",
-            "name": "Status",
-            "description": "Status attribute",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "P",
-                "A",
-                "I",
-                "B",
-                "L"
-              ]
-            }
+            "$ref": "#/components/parameters/UserStatuses"
           },
           {
-            "in": "query",
-            "name": "ExcludeSiteID",
-            "required": false,
-            "description": "Site ID to exclude",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "ExcludeUserIDs",
-            "description": "Pipe separated user IDs to exclude",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "IncludeCarUserIDs",
-            "description": "Pipe separated car IDs",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "NotAssignedToCarID",
-            "description": "Car ID",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/UserExcludeSiteID"
           },
           {
             "$ref": "#/components/parameters/Skip"
@@ -3992,6 +5063,559 @@
         }
       }
     },
+    "/api/users/{id}/default-car-tag": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Get the User's default car tag",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userID"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrieved default car tag and car",
+            "content": {
+              "application/json": {
+                "example": {
+                  "tag": {
+                    "active": true,
+                    "description": "###",
+                    "id": "###"
+                  },
+                  "car": {
+                    "licensePlate": "###",
+                    "type": "#",
+                    "carCatalog": {
+                      "vehicleMake": "###",
+                      "vehicleModel": "###",
+                      "vehicleModelVersion": "###"
+                    },
+                    "id": "###"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/sites": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Get user's assigned sites",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userID"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrieved assigned sites list",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "result": [
+                    {
+                      "userID": "###",
+                      "siteAdmin": false,
+                      "site": {
+                        "address": {
+                          "city": "###",
+                          "country": "###"
+                        },
+                        "name": "###",
+                        "id": "###"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      },
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Assign sites to a user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userID"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "siteIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User successfully assigned to sites",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      },
+      "put": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Unassign sites to a user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userID"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "siteIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User successfully unassigned to sites",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/mobile-token": {
+      "put": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Update user's mobile tokens",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userID"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "mobileToken"
+                ],
+                "properties": {
+                  "mobileToken": {
+                    "type": "string"
+                  },
+                  "mobileOS": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mobile token successfully updated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/image": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Get user's image",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/userID"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Retrieved user image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "User ID"
+                    },
+                    "image": {
+                      "type": "string",
+                      "description": "Base 64 encoded image"
+                    }
+                  }
+                },
+                "example": {
+                  "id": "###",
+                  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEAC..."
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      }
+    },
+    "/api/users/status/in-error": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Retrieve a list of Users in error",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserRoles"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "in": "query",
+            "name": "ErrorType",
+            "required": false,
+            "description": "Pipe separated error types (inactive_user, unassigned_user, inactive_user_account, failed_billing_synchro, no_billing_data)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/OnlyRecordCount"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Return users in error list",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "result": [
+                    {
+                      "email": "###",
+                      "createdOn": "2021-04-23T09:08:16.451Z",
+                      "firstName": "###",
+                      "issuer": true,
+                      "name": "###",
+                      "status": "P",
+                      "role": "B",
+                      "errorCode": "inactive_user",
+                      "id": "###",
+                      "canRead": true,
+                      "canUpdate": true,
+                      "canDelete": true
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/users/action/import": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Import users from file",
+        "requestBody": {
+          "content": {
+            "text/csv": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Users importation results",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Success",
+                  "inSuccess": 42,
+                  "inError": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "583": {
+            "$ref": "#/components/responses/InvalidFileFormat"
+          },
+          "584": {
+            "$ref": "#/components/responses/InvalidCSVHeaderFormat"
+          }
+        }
+      }
+    },
+    "/api/users/action/export": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Export users",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Issuer"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/SiteIDs"
+          },
+          {
+            "$ref": "#/components/parameters/UserIDs"
+          },
+          {
+            "$ref": "#/components/parameters/UserRoles"
+          },
+          {
+            "$ref": "#/components/parameters/UserStatuses"
+          },
+          {
+            "$ref": "#/components/parameters/UserExcludeSiteID"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/OnlyRecordCount"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "Users exported successfully",
+            "content": {
+              "text/csv": {
+                "example": "id,name,firstName,locale,role,status,email,eulaAcceptedOn,createdOn,changedOn,changedBy\n\"###\",\"DEMO\",\"User\",\"en_EN\",\"B\",\"P\",\"user.demo@sap.com\",\"2021-06-09\",\"2021-04-23\",\"2021-06-09\",\"\""
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "583": {
+            "description": "Invalid file format"
+          },
+          "584": {
+            "description": "Invalid CSV header format"
+          }
+        }
+      }
+    },
     "/api/tags": {
       "get": {
         "security": [
@@ -4011,12 +5635,10 @@
             "$ref": "#/components/parameters/UserID"
           },
           {
-            "in": "query",
-            "name": "Active",
-            "description": "Active attribute",
-            "schema": {
-              "type": "boolean"
-            }
+            "$ref": "#/components/parameters/TagActive"
+          },
+          {
+            "$ref": "#/components/parameters/TagWithUser"
           },
           {
             "$ref": "#/components/parameters/Skip"
@@ -4126,6 +5748,60 @@
           },
           "576": {
             "description": "Tag already exists"
+          }
+        }
+      },
+      "delete": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Delete several Tags",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tagsIDs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Tags"
+        ],
+        "responses": {
+          "200": {
+            "description": "Tags deletion result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "inSuccess": 42,
+                  "inError": 0,
+                  "status": "Success"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
           }
         }
       }
@@ -4307,9 +5983,356 @@
           },
           "550": {
             "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      }
+    },
+    "/api/tags/action/import": {
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Import a Tag file",
+        "requestBody": {
+          "content": {
+            "text/csv": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "example": "id,visualID,description,firstName,name,email\n\"###\",\"###\",\"###\",\"###\",\"###\",\"###\""
+              }
+            }
+          }
+        },
+        "tags": [
+          "Tags"
+        ],
+        "responses": {
+          "200": {
+            "description": "Tag importation results",
+            "content": {
+              "application/json": {
+                "example": {
+                  "inSuccess": 42,
+                  "inError": 0,
+                  "status": "Success"
+                }
+              }
+            }
           },
-          "575": {
-            "$ref": "#/components/responses/TagHasTransactionsError"
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "583": {
+            "$ref": "#/components/responses/InvalidFileFormat"
+          },
+          "584": {
+            "$ref": "#/components/responses/InvalidCSVHeaderFormat"
+          }
+        }
+      }
+    },
+    "/api/tags/action/export": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Export Tags",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/UserIDs"
+          },
+          {
+            "$ref": "#/components/parameters/Issuer"
+          },
+          {
+            "$ref": "#/components/parameters/TagActive"
+          },
+          {
+            "$ref": "#/components/parameters/TagWithUser"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Tags"
+        ],
+        "responses": {
+          "200": {
+            "description": "Return exported tags",
+            "content": {
+              "text/csv": {
+                "example": "id,visualID,description,firstName,name,email\n\"###\",\"###\",\"###\",\"###\",\"###\",\"###\""
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "583": {
+            "$ref": "#/components/responses/InvalidFileFormat"
+          },
+          "584": {
+            "$ref": "#/components/responses/InvalidCSVHeaderFormat"
+          }
+        }
+      }
+    },
+    "/api/loggings": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Retrieve a list of logs",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StartDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/EndDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/LogLevel"
+          },
+          {
+            "$ref": "#/components/parameters/LogSource"
+          },
+          {
+            "$ref": "#/components/parameters/LogHost"
+          },
+          {
+            "$ref": "#/components/parameters/LogType"
+          },
+          {
+            "$ref": "#/components/parameters/LogAction"
+          },
+          {
+            "$ref": "#/components/parameters/UserID"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/OnlyRecordCount"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Loggings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Return logs list",
+            "content": {
+              "application/json": {
+                "example": {
+                  "count": 1,
+                  "result": [
+                    {
+                      "level": "D",
+                      "source": "###",
+                      "host": "###",
+                      "process": "###",
+                      "type": "S",
+                      "timestamp": "2021-08-18T09:09:57.129Z",
+                      "module": "###",
+                      "method": "###",
+                      "action": "###",
+                      "message": "###",
+                      "user": {
+                        "firstName": "###",
+                        "name": "###"
+                      },
+                      "hasDetailedMessages": true,
+                      "id": "###"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          }
+        }
+      }
+    },
+    "/api/loggings/{id}": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Retrieve a log",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Log ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "Loggings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Returned log",
+            "content": {
+              "application/json": {
+                "example": {
+                  "level": "D",
+                  "source": "###",
+                  "host": "###",
+                  "process": "###",
+                  "type": "S",
+                  "timestamp": "2021-08-18T08:53:00.924Z",
+                  "action": "###",
+                  "message": "###",
+                  "detailedMessages": "###",
+                  "user": {
+                    "firstName": "###",
+                    "name": "###"
+                  },
+                  "hasDetailedMessages": true,
+                  "id": "###"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
+          },
+          "550": {
+            "$ref": "#/components/responses/ResourceDoesNotExists"
+          }
+        }
+      }
+    },
+    "/api/loggings/action/export": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Export loggings as CSV file",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StartDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/EndDateTime"
+          },
+          {
+            "$ref": "#/components/parameters/LogLevel"
+          },
+          {
+            "$ref": "#/components/parameters/LogSource"
+          },
+          {
+            "$ref": "#/components/parameters/LogHost"
+          },
+          {
+            "$ref": "#/components/parameters/LogType"
+          },
+          {
+            "$ref": "#/components/parameters/LogAction"
+          },
+          {
+            "$ref": "#/components/parameters/UserID"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/Skip"
+          },
+          {
+            "$ref": "#/components/parameters/SortFields"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectFields"
+          }
+        ],
+        "tags": [
+          "Loggings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Return exported logs",
+            "content": {
+              "text/csv": {
+                "example": "date,time,level,type,action,message,method,module,source,host,process\n\"2021-08-18\",\"11:36:37\",\"D\",\"S\",\"###\",\"###\",\"###\",\"###\",\"###\",\"###\",\"###\""
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BackendError"
           }
         }
       }
@@ -4347,6 +6370,12 @@
       },
       "TagHasTransactionsError": {
         "description": "Cannot change user or delete a tag having transactions"
+      },
+      "InvalidFileFormat": {
+        "description": "Invalid file format"
+      },
+      "InvalidCSVHeaderFormat": {
+        "description": "Invalid CSV header format"
       }
     },
     "schemas": {
@@ -5020,6 +7049,10 @@
             "type": "string",
             "example": "T12345678"
           },
+          "visualID": {
+            "type": "string",
+            "example": "###"
+          },
           "userID": {
             "type": "string",
             "example": "###"
@@ -5079,14 +7112,9 @@
           "address": {
             "$ref": "#/components/schemas/Address"
           },
-          "passwords": {
-            "type": "object",
-            "properties": {
-              "password": {
-                "type": "string",
-                "example": "DeM*Us$r1"
-              }
-            }
+          "password": {
+            "type": "string",
+            "example": "DeM*Us$r1"
           },
           "phone": {
             "type": "string",
@@ -5128,6 +7156,75 @@
           },
           "notifications": {
             "$ref": "#/components/schemas/Notifications"
+          }
+        }
+      },
+      "AssetConsumption": {
+        "type": "object",
+        "required": [
+          "assetID",
+          "startedAt",
+          "endedAt",
+          "instantWatts"
+        ],
+        "properties": {
+          "assetID": {
+            "$ref": "#/components/parameters/assetID"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2020-12-31T23:00:00.000Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2020-12-31T23:01:00.000Z"
+          },
+          "instantWatts": {
+            "type": "number"
+          },
+          "instantWattsL1": {
+            "type": "number"
+          },
+          "instantWattsL2": {
+            "type": "number"
+          },
+          "instantWattsL3": {
+            "type": "number"
+          },
+          "instantAmps": {
+            "type": "number"
+          },
+          "instantAmpsL1": {
+            "type": "number"
+          },
+          "instantAmpsL2": {
+            "type": "number"
+          },
+          "instantAmpsL3": {
+            "type": "number"
+          },
+          "instantVolts": {
+            "type": "number"
+          },
+          "instantVoltsL1": {
+            "type": "number"
+          },
+          "instantVoltsL2": {
+            "type": "number"
+          },
+          "instantVoltsL3": {
+            "type": "number"
+          },
+          "consumptionWh": {
+            "type": "number"
+          },
+          "consumptionAmps": {
+            "type": "number"
+          },
+          "stateOfCharge": {
+            "type": "number"
           }
         }
       },
@@ -5302,6 +7399,15 @@
           "type": "string"
         }
       },
+      "VisualTagIDs": {
+        "in": "query",
+        "name": "VisualTagID",
+        "description": "Pipe separated Visual Tag IDs",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
       "TagIDs": {
         "in": "query",
         "name": "TagID",
@@ -5412,6 +7518,15 @@
         "in": "path",
         "name": "id",
         "description": "Charging Station ID",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "assetID": {
+        "in": "path",
+        "name": "id",
+        "description": "Asset ID",
         "required": true,
         "schema": {
           "type": "string"
@@ -5540,10 +7655,58 @@
           "type": "boolean"
         }
       },
+      "WithCompany": {
+        "in": "query",
+        "name": "WithCompany",
+        "description": "With company attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
       "WithSite": {
         "in": "query",
         "name": "WithSite",
         "description": "With site attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "WithSiteArea": {
+        "in": "query",
+        "name": "WithSiteArea",
+        "description": "With site area attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "WithTag": {
+        "in": "query",
+        "name": "WithTag",
+        "description": "With tag attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "WithUser": {
+        "in": "query",
+        "name": "WithUser",
+        "description": "With user attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "WithCar": {
+        "in": "query",
+        "name": "WithCar",
+        "description": "With car attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "WithChargingStation": {
+        "in": "query",
+        "name": "WithChargingStation",
+        "description": "With charging station attribute",
         "schema": {
           "type": "boolean"
         }
@@ -5571,6 +7734,93 @@
         "name": "id",
         "description": "Transaction ID",
         "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "UserRoles": {
+        "in": "query",
+        "name": "Role",
+        "required": false,
+        "description": "Pipe separated user roles (S, A, B, D)",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "UserStatuses": {
+        "in": "query",
+        "name": "Status",
+        "description": "Pipe separated statuses (P, A, I, B, L)",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "UserExcludeSiteID": {
+        "in": "query",
+        "name": "ExcludeSiteID",
+        "required": false,
+        "description": "Site ID to exclude",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "TagActive": {
+        "in": "query",
+        "name": "Active",
+        "description": "Active attribute",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "TagWithUser": {
+        "in": "query",
+        "name": "WithUser",
+        "description": "Retrieve also the user",
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "LogLevel": {
+        "in": "query",
+        "name": "Level",
+        "description": "Pipe separated log levels (D, I, W, E, NONE, DEFAULT)",
+        "schema": {
+          "type": "string",
+          "pattern": "^((D|I|W|E|NONE|DEFAULT)(\\||D|I|W|E|NONE|DEFAULT)*)?$"
+        }
+      },
+      "LogSource": {
+        "in": "query",
+        "name": "Source",
+        "description": "Log source",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "LogHost": {
+        "in": "query",
+        "name": "Host",
+        "description": "Log host",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "LogType": {
+        "in": "query",
+        "name": "Type",
+        "description": "Log type",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "R",
+            "S"
+          ]
+        }
+      },
+      "LogAction": {
+        "in": "query",
+        "name": "Action",
+        "description": "Pipe separated log actions",
         "schema": {
           "type": "string"
         }

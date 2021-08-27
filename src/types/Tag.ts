@@ -15,11 +15,15 @@ export default interface Tag extends CreatedUpdatedProps, AuthorizationActions {
   ocpiToken?: OCPIToken;
   user?: User;
   default?: boolean
+  importedData?: {
+    autoActivateUserAtImport: boolean;
+    autoActivateTagAtImport: boolean;
+  };
 }
 
 export interface ImportedTag {
   id: string;
-  visualID?: string;
+  visualID: string;
   description: string;
   importedBy?: string;
   importedOn?: Date;
@@ -28,6 +32,11 @@ export interface ImportedTag {
   name?: string;
   firstName?: string;
   email?: string;
+  importedData?: {
+    autoActivateUserAtImport: boolean;
+    autoActivateTagAtImport: boolean;
+  };
+  siteIDs?: string;
 }
 
 export const TagRequiredImportProperties = [
