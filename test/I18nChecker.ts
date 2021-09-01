@@ -6,10 +6,10 @@ import { promises as fs } from 'fs';
 class I18nChecker {
 
   public static async compare(): Promise<void> {
-    const contentEN = await fs.readFile('./src/assets/i18n/en.json', 'utf8');
-    const otherLanguages = Constants.SUPPORTED_LANGUAGES.filter((lang) => (lang !== 'en') ? lang : null);
-    const otherFiles = otherLanguages.map((language) => language + '.json');
     try {
+      const contentEN = await fs.readFile('./src/assets/i18n/en.json', 'utf8');
+      const otherLanguages = Constants.SUPPORTED_LANGUAGES.filter((lang) => (lang !== 'en') ? lang : null);
+      const otherFiles = otherLanguages.map((language) => language + '.json');
       const parsedContentEN = JSON.parse(contentEN);
       for (const file of otherFiles) {
         try {
